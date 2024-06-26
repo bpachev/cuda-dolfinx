@@ -1,0 +1,19 @@
+set(HEADERS_fem
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDAAssembler.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDADirichletBC.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDADofMap.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDAForm.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormConstants.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormCoefficients.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormIntegral.h
+    PARENT_SCOPE
+)
+
+target_sources(
+  cudolfinx
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/CUDAAssembler.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/CUDADirichletBC.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/CUDADofMap.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormConstants.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormCoefficients.cpp
+)

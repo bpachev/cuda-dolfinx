@@ -1,0 +1,16 @@
+# pkg-config configuration for CUDOLFINx
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+compiler=@CMAKE_CXX_COMPILER@
+definitions=@PKG_DEFINITIONS@
+extlibs=@CUDOLFINX_EXT_LIBS@
+
+Name: CUDOLFINx
+Description: CUDA extension for DOLFINX
+Version: @CUDOLFINX_VERSION@
+Requires: @PKG_REQUIRES@
+Conflicts:
+Libs: @PKG_LINKFLAGS@ -L${libdir} -lcudolfinx
+Cflags: @PKG_CXXFLAGS@ -DCUDOLFINX_VERSION=\"@CUDOLFINX_VERSION@\" ${definitions} -I${includedir} @PKG_INCLUDES@
