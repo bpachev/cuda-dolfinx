@@ -280,7 +280,7 @@ get_target_property(
 # Configure and install pkg-config file
 configure_file(
   ${CUDOLFINX_SOURCE_DIR}/cmake/templates/cudolfinx.pc.in
-  ${CMAKE_BINARY_DIR}/dolfinx.pc @ONLY
+  ${CMAKE_BINARY_DIR}/cudolfinx.pc @ONLY
 )
 install(
   FILES ${CMAKE_BINARY_DIR}/cudolfinx.pc
