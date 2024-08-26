@@ -35,6 +35,10 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
+#include <petsc4py/petsc4py.h>
+#include <petscis.h>
+#include <petscmat.h>
+#include <petscvec.h>
 #include <span>
 #include <string>
 #include <utility>
@@ -232,14 +236,17 @@ void declare_cuda_funcs(nb::module_& m)
   m.def("copy_function_to_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::Function<T, U>& f)
         {
-          f.x()->to_device(cuda_context);
+          //f.x()->to_device(cuda_context);
+	  //TODO:: determine if we are OK not passing cuda_context
+	  f.x()->to_device();
         },
         nb::arg("context"), nb::arg("f"), "Copy function data to GPU"); 
 
   m.def("copy_function_space_to_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::FunctionSpace<T>& V)
         {
-          V.create_cuda_dofmap(cuda_context);
+          //V.create_cuda_dofmap(cuda_context);
+	  //TODO find a workaround for moving the dofmap to the device. . . 
         },
         nb::arg("context"), nb::arg("V"), "Copy function space dofmap to GPU");
 
@@ -386,10 +393,6 @@ namespace dolfinx_wrappers
 
 void fem(nb::module_& m)
 {
-  declare_objects<float>(m, "float32");
-  declare_objects<double>(m, "float64");
-  declare_objects<std::complex<float>>(m, "complex64");
-  declare_objects<std::complex<double>>(m, "complex128");
 
   declare_cuda_templated_objects<float>(m, "float32");
   declare_cuda_templated_objects<double>(m, "float64");
