@@ -1,24 +1,25 @@
+# About
+
+NOTICE: This repository is still under construction - examples and documentation are forthcoming.
+
+This repository is an add-on extension to the DOLFINx library providing GPU accelerated assembly routines. Currently only NVIDIA GPUs are supported, and only single-GPU assembly is supported.
+
 # Setup
 
-This repository contains examples of GPU acceleration with FEniCSx. In order to run the examples, you will need to build FEniCSx from source, using my forks of ffcx and dolfinx. The differences in the build process are as follows:
+This repository depends on my custom forks of dolfinx and ffcx. The dolfinx library must be built from source:
 
 - the flag `-DDOLFINX_ENABLE_CUDATOOLKIT=ON` must be passed when configuring dolfinx.
 - PETSc needs to be compiled with GPU support enabled. 
 
-## v0.8.0 (recommended)
+## Custom branches
 
-For a version compatible with dolfinx 0.8.0, clone the branches version-0.8.0 of my dolfinx and ffcx forks
+ The following branches need to be cloned of my forks:
 
 ```
 git clone --branch version-0.8.0 git@github.com:bpachev/ffcx
-git clone --branch version-0.8.0 git@github.com:bpachev/dolfinx
+git clone --branch standalone-package git@github.com:bpachev/dolfinx
 ```
 
-## main
+Versions of basix and ufl also need to be cloned that are compatible with dolfinx 0.8.0.
 
-For access to the current development version, clone the main branches
 
-```
-git clone git@github.com:bpachev/ffcx
-git clone git@github.com:bpachev/dolfinx
-```
