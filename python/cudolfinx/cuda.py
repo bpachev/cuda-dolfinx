@@ -14,6 +14,7 @@ from dolfinx.fem.function import Function, FunctionSpace
 from dolfinx.mesh import Mesh
 from dolfinx import fem as fe
 from dolfinx.fem.petsc import create_vector as create_petsc_vector, create_matrix as create_petsc_matrix
+from cudolfinx import cpp as _cucpp
 from petsc4py import PETSc
 import gc
 import numpy as np
@@ -36,7 +37,7 @@ def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   arr = np.zeros(size[0])
   return PETSc.Vec().createCUDAWithArrays(cpuarray=arr, size=size, bsize=bs, comm=index_map.comm)
 
-def _create_form_on_device(form: Form, ctx: _cpp.fem.CUDAContext):
+def _create_form_on_device(form: Form, ctx: _cucpp.fem.CUDAContext):
   """Create device-side data structures needed to assemble a Form
   """
 
@@ -45,18 +46,12 @@ def _create_form_on_device(form: Form, ctx: _cpp.fem.CUDAContext):
 
   # now determine the Mesh object corresponding to this form
   form._cuda_mesh = _create_mesh_on_device(form.mesh, ctx)
-  # functionspaces
-  coeffs = form._cpp_object.coefficients
-  for space in form._cpp_object.function_spaces:
-    _cpp.fem.copy_function_space_to_device(ctx, space)
-  for c in coeffs:
-    _cpp.fem.copy_function_space_to_device(ctx, c.function_space)
 
   cpp_form = form._cpp_object
   if type(cpp_form) is _cpp.fem.Form_float32:
-    cuda_form = _cpp.fem.CUDAForm_float32(ctx, cpp_form)
+    cuda_form = _cucpp.fem.CUDAForm_float32(ctx, cpp_form)
   elif type(cpp_form) is _cpp.fem.Form_float64:
-    cuda_form = _cpp.fem.CUDAForm_float64(ctx, cpp_form)
+    cuda_form = _cucpp.fem.CUDAForm_float64(ctx, cpp_form)
   else:
     raise ValueError(f"Cannot instantiate CUDAForm for Form of type {type(cpp_form)}!")
 
@@ -64,28 +59,28 @@ def _create_form_on_device(form: Form, ctx: _cpp.fem.CUDAContext):
   cuda_form.compile(ctx, max_threads_per_block=1024, min_blocks_per_multiprocessor=1)
   form._cuda_form = cuda_form
 
-def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64], ctx: _cpp.fem.CUDAContext):
+def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64], ctx: _cucpp.fem.CUDAContext):
   """Create device-side mesh data
   """
 
   if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
-    return _cpp.fem.CUDAMesh_float32(ctx, cpp_mesh)
+    return _cucpp.fem.CUDAMesh_float32(ctx, cpp_mesh)
   elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
-    return _cpp.fem.CUDAMesh_float64(ctx, cpp_mesh)
+    return _cucpp.fem.CUDAMesh_float64(ctx, cpp_mesh)
   else:
     raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")
 
 
 
 @functools.singledispatch
-def to_device(obj: typing.Any, ctx: _cpp.fem.CUDAContext):
+def to_device(obj: typing.Any, ctx: _cucpp.fem.CUDAContext):
   """Copy an object to the device
   """
 
   return _to_device(obj, ctx)
 
 @to_device.register(Form)
-def _to_device(a: Form, ctx: _cpp.fem.CUDAContext):
+def _to_device(a: Form, ctx: _cucpp.fem.CUDAContext):
   """Copy a Form's coefficients to the device
   """
 
@@ -93,14 +88,14 @@ def _to_device(a: Form, ctx: _cpp.fem.CUDAContext):
   a._cuda_form.to_device(ctx)
 
 @to_device.register(Function)
-def _to_device(f: Function, ctx: _cpp.femCUDAContext):
+def _to_device(f: Function, ctx: _cucpp.fem.CUDAContext):
   """Copy a Function to the device
   """
 
   f._cpp_object.x.to_device(ctx)
 
 @to_device.register(la.Vector)
-def _to_device(v: la.Vector, ctx: _cpp.femCUDAContext):
+def _to_device(v: la.Vector, ctx: _cucpp.fem.CUDAContext):
   """Copy a Vector to the device
   """
 
@@ -115,13 +110,13 @@ class CUDAAssembler:
     """
 
     self._device = init_device()
-    self._ctx = _cpp.fem.CUDAContext()
+    self._ctx = _cucpp.fem.CUDAContext()
     self._tmpdir = tempfile.TemporaryDirectory()
-    self._cpp_object = _cpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
+    self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
 
   def assemble_matrix(self,
       a: Form,
-      mat: typing.Optional[_cpp.fem.CUDAMatrix] = None,
+      mat: typing.Optional[_cucpp.fem.CUDAMatrix] = None,
       bcs: typing.Optional[typing.Union[list[DirichletBC], CUDADirichletBC]] = None,
       diagonal: float = 1.0,
       constants: typing.Optional[list] = None,
@@ -196,7 +191,7 @@ class CUDAAssembler:
       vec = self.create_vector(b)
    
     self.pack_coefficients(b, coeffs) 
-    _cpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b._cuda_form,
+    _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b._cuda_form,
       b._cuda_mesh, vec._cpp_object)
     return vec
 
@@ -229,11 +224,11 @@ class CUDAAssembler:
   
     self._check_form(a)
     if coefficients is None:
-      _cpp.fem.pack_coefficients(self._ctx, self._cpp_object, a._cuda_form)
+      _cucpp.fem.pack_coefficients(self._ctx, self._cpp_object, a._cuda_form)
     else:
       # perform a repacking with only the indicated coefficients
       _coefficients = [c._cpp_object for c in coefficients]
-      _cpp.fem.pack_coefficients(self._ctx, self._cpp_object, a._cuda_form, _coefficients)
+      _cucpp.fem.pack_coefficients(self._ctx, self._cpp_object, a._cuda_form, _coefficients)
 
   def apply_lifting(self,
     b: CUDAVector,
@@ -284,7 +279,7 @@ class CUDAAssembler:
       if cuda_mesh is None: cuda_mesh = form._cuda_mesh
       _bcs.append(bc_collection._get_cpp_bcs(form.function_spaces[1]))
 
-    _cpp.fem.apply_lifting_on_device(
+    _cucpp.fem.apply_lifting_on_device(
       self._ctx, self._cpp_object,
       cuda_forms, cuda_mesh,
       b._cpp_object, _bcs, _x0, scale
@@ -294,7 +289,7 @@ class CUDAAssembler:
     b: CUDAVector,
     bcs: typing.Union[list[DirichletBC], CUDADirichletBC],
     V: FunctionSpace,
-    x0: typing.Optional[la.Vector] = None,
+    x0: typing.Optional[Function] = None,
     scale: float = 1.0,
   ):
     """Set boundary conditions on device.
@@ -324,7 +319,7 @@ class CUDAAssembler:
         b._cpp_object, _bcs, scale
       )
     else:
-      _cpp.fem.set_bc_on_device(
+      _cucpp.fem.set_bc_on_device(
         self._ctx, self._cpp_object,
         b._cpp_object, _bcs, x0._cpp_object, scale
       )
@@ -352,7 +347,7 @@ class CUDAVector:
 
     self._petsc_vec = vec
     self._ctx = ctx
-    self._cpp_object = _cpp.fem.CUDAVector(ctx, self._petsc_vec)
+    self._cpp_object = _cucpp.fem.CUDAVector(ctx, self._petsc_vec)
 
   def vector(self):
     """Return underlying PETSc vector
@@ -383,7 +378,7 @@ class CUDAMatrix:
 
     self._petsc_mat = petsc_mat
     self._ctx = ctx
-    self._cpp_object = _cpp.fem.CUDAMatrix(ctx, petsc_mat)
+    self._cpp_object = _cucpp.fem.CUDAMatrix(ctx, petsc_mat)
 
   def mat(self):
     """Return underlying CUDA matrix
@@ -429,9 +424,9 @@ class CUDADirichletBC:
         return self._cpp_bc_objects[i]
 
     if type(V) is _cpp.fem.FunctionSpace_float32:
-      _cpp_bc_obj = _cpp.fem.CUDADirichletBC_float32(self._ctx, V, self._bcs)
+      _cpp_bc_obj = _cucpp.fem.CUDADirichletBC_float32(self._ctx, V, self._bcs)
     elif type(V) is _cpp.fem.FunctionSpace_float64:
-      _cpp_bc_obj = _cpp.fem.CUDADirichletBC_float64(self._ctx, V, self._bcs)
+      _cpp_bc_obj = _cucpp.fem.CUDADirichletBC_float64(self._ctx, V, self._bcs)
     else:
       raise TypeError(f"Invalid type for cpp FunctionSpace object '{type(V)}'")
 

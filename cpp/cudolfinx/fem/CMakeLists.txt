@@ -1,5 +1,6 @@
 set(HEADERS_fem
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDAAssembler.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CUDACoefficient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDADirichletBC.h
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDADofMap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDAForm.h
@@ -16,4 +17,5 @@ target_sources(
           ${CMAKE_CURRENT_SOURCE_DIR}/CUDADofMap.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormConstants.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormCoefficients.cpp
+	  ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormIntegral.cpp
 )

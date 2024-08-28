@@ -12,6 +12,7 @@
 
 #if defined(HAS_CUDA_TOOLKIT)
 #include <cudolfinx/common/CUDA.h>
+#include <cudolfinx/common/CUDAStore.h>
 #include <cudolfinx/fem/CUDADirichletBC.h>
 #include <cudolfinx/fem/CUDADofMap.h>
 #include <cudolfinx/fem/CUDAFormCoefficients.h>
@@ -40,7 +41,7 @@ public:
     const CUDA::Context& cuda_context,
     Form<T,U>* form
   )
-  : _coefficients(cuda_context, form)
+  : _coefficients(cuda_context, form, _dofmap_store)
   , _constants(cuda_context, form)
   , _form(form)
   , _compiled(false)
@@ -84,7 +85,7 @@ public:
 
   const CUDAFormConstants<T>& constants() { return _constants; }
 
-  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {return _form->function_spaces()[i]->cuda_dofmap(); }
+  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {return _dofmap_store.get_device_object(_form->function_spaces()[i]->dofmap()); }
 
   Form<T,U>* form() { return _form; }
 
@@ -107,6 +108,7 @@ private:
 
   CUDAFormCoefficients<T, U> _coefficients;
   CUDAFormConstants<T> _constants;
+  common::CUDAStore<DofMap, CUDADofMap> _dofmap_store;
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>> _integrals;
   bool _compiled;
   Form<T,U>* _form;

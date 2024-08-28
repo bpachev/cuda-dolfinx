@@ -57,6 +57,7 @@ nanobind_add_module(
   cpp
   NOMINSIZE
   cudolfinx/wrappers/cudolfinx.cpp
+  cudolfinx/wrappers/fem.cpp
 )
 
 # Add strict compiler flags include(CheckCXXCompilerFlag)

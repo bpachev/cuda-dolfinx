@@ -27,9 +27,11 @@ public:
 
   /// Create a dofmap
   ///
-  /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] dofmap The dofmap to copy to device memory
-  CUDADofMap(const CUDA::Context& cuda_context, const dolfinx::fem::DofMap& dofmap);
+  CUDADofMap(const dolfinx::fem::DofMap& dofmap);
+
+  /// Alternate constructor
+  CUDADofMap(std::shared_ptr<const dolfinx::fem::DofMap> dofmap);
 
   /// Destructor
   ~CUDADofMap();

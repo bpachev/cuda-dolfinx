@@ -10,6 +10,8 @@
 
 #if defined(HAS_CUDA_TOOLKIT)
 #include <cudolfinx/common/CUDA.h>
+#include <cudolfinx/common/CUDAStore.h>
+#include <cudolfinx/fem/CUDACoefficient.h>
 #include <cudolfinx/fem/CUDADofMap.h>
 #include <cudolfinx/la/CUDAVector.h>
 #endif
@@ -59,12 +61,14 @@ public:
   ///
   /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] form The variational form whose coefficients are used
+  /// @param[in] dofmap_store A cache mapping host-side to device-side dofmaps
   /// @param[in] page_lock Whether or not to use page-locked memory
   ///                      for host-side arrays
   //-----------------------------------------------------------------------------
   CUDAFormCoefficients(
     const CUDA::Context& cuda_context,
     Form<T,U>* form,
+    common::CUDAStore<DofMap, CUDADofMap>& dofmap_store, 
     bool page_lock=false)
     : _coefficients(form->coefficients())
     , _dofmaps_num_dofs_per_cell(0)
@@ -101,8 +105,10 @@ public:
       std::vector<int> dofmaps_num_dofs_per_cell(num_coefficients);
       std::vector<CUdeviceptr> dofmaps_dofs_per_cell(num_coefficients);
       for (int i = 0; i < num_coefficients; i++) {
+        _device_coefficients.push_back(std::make_shared<CUDACoefficient<T,U>>(_coefficients[i]));
+	_coefficient_device_ptrs.push_back(_device_coefficients[i]->device_values());
         const fem::CUDADofMap* cuda_dofmap =
-          _coefficients[i]->function_space()->cuda_dofmap().get();
+          dofmap_store.get_device_object(_coefficients[i]->function_space()->dofmap()).get();
         dofmaps_num_dofs_per_cell[i] = cuda_dofmap->num_dofs_per_cell();
         dofmaps_dofs_per_cell[i] = cuda_dofmap->dofs_per_cell();
       }
@@ -241,7 +247,14 @@ public:
   /// Get the number of mesh cells that the coefficient applies to
   int32_t num_coefficients() const { return _coefficients.size(); }
 
+  /// Return array of Functions
   const std::vector<std::shared_ptr<const Function<T, U>>>& coefficients() { return _coefficients; };
+
+  /// Return array of CUDACoefficients (wrappers around Function)
+  const std::vector<std::shared_ptr<CUDACoefficient<T,U>>>& device_coefficients() { return _device_coefficients; }
+
+  /// Return array of device pointers for the coefficients
+  const std::vector<CUdeviceptr> coefficient_device_ptrs() { return _coefficient_device_ptrs; }
 
   /// Get device-side pointer to number of dofs per cell for each coefficient
   CUdeviceptr dofmaps_num_dofs_per_cell() const { return _dofmaps_num_dofs_per_cell; }
@@ -330,15 +343,20 @@ public:
   void copy_coefficients_to_device(
     const CUDA::Context& cuda_context)
   {
-    for (int i = 0; i < _coefficients.size(); i++) {
-      std::shared_ptr<const la::Vector<T>> x = _coefficients[i]->x();
-      const_cast<la::Vector<T>*>(x.get())->to_device(cuda_context);
+    for (int i = 0; i < _device_coefficients.size(); i++) {
+      _device_coefficients[i]->copy_host_values_to_device();
     }
   }
 
 private:
   /// The underlying coefficients on the host
   std::vector<std::shared_ptr<const Function<T, U>>> _coefficients;
+
+  /// CUDA wrappers for the coefficients
+  std::vector<std::shared_ptr<CUDACoefficient<T,U>>> _device_coefficients;
+
+  /// Array of device pointers
+  std::vector<CUdeviceptr> _coefficient_device_ptrs;
 
   /// Number of dofs per cell for each coefficient
   CUdeviceptr _dofmaps_num_dofs_per_cell;

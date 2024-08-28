@@ -186,14 +186,9 @@ public:
     const char * cuda_err_description;
 
     {
-        std::int32_t num_coefficients = coefficients.num_coefficients();
-        const std::vector<std::shared_ptr<const Function<T, U>>>& _coefficients = coefficients.coefficients();
+        std::vector<CUdeviceptr> coefficient_values = coefficients.coefficient_device_ptrs();
+        std::int32_t num_coefficients = coefficient_values.size();
         CUdeviceptr dcoefficient_values = coefficients.coefficient_values();
-
-        std::vector<CUdeviceptr> coefficient_values(num_coefficients);
-        for (int i = 0; i < num_coefficients; i++) {
-            coefficient_values[i] = _coefficients[i]->x()->device_values();
-        }
         size_t coefficient_values_size = num_coefficients * sizeof(CUdeviceptr);
         cuda_err = cuMemcpyHtoD(
             dcoefficient_values, coefficient_values.data(), coefficient_values_size);
@@ -383,7 +378,7 @@ public:
   void set_bc(
     const CUDA::Context& cuda_context,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc,
-    std::shared_ptr<dolfinx::la::Vector<T>> x0,
+    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
     double scale,
     dolfinx::la::CUDAVector& b) const
   {
@@ -507,7 +502,7 @@ public:
     const dolfinx::fem::CUDAFormConstants<T>& constants,
     const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc1,
-    std::shared_ptr<dolfinx::la::Vector<T>> x0,
+    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
     double scale,
     dolfinx::la::CUDAVector& b,
     bool verbose) const

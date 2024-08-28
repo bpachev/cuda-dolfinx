@@ -28,9 +28,15 @@ CUDADofMap::CUDADofMap()
   , _dcells_per_dof(0)
 {
 }
+
+CUDADofMap::CUDADofMap(
+  std::shared_ptr<const dolfinx::fem::DofMap> dofmap)
+  : CUDADofMap::CUDADofMap(*dofmap.get())
+{
+}
+
 //-----------------------------------------------------------------------------
 CUDADofMap::CUDADofMap(
-  const CUDA::Context& cuda_context,
   const dolfinx::fem::DofMap& dofmap)
   : _dofmap(&dofmap)
   , _num_dofs()

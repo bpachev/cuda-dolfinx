@@ -360,7 +360,7 @@ void lift_bc_cell(
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
   double scale,
-  std::shared_ptr<dolfinx::la::Vector<T>> x0,
+  std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
   dolfinx::la::CUDAVector& b,
   bool verbose)
 {
@@ -476,7 +476,7 @@ void lift_bc_facet(
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
   double scale,
-  std::shared_ptr<dolfinx::la::Vector<T>> x0,
+  std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
   dolfinx::la::CUDAVector& b,
   bool verbose,
   std::int32_t num_mesh_entities,
@@ -1016,7 +1016,7 @@ public:
     const dolfinx::fem::CUDAFormConstants<T>& constants,
     const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
     double scale,
-    std::shared_ptr<dolfinx::la::Vector<T>> x0,
+    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
     dolfinx::la::CUDAVector& b,
     bool verbose) const
   {
