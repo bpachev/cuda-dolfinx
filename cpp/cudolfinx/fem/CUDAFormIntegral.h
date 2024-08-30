@@ -726,8 +726,22 @@ public:
     CUresult cuda_err;
     const char * cuda_err_description;
 
-    _assembly_kernel = _assembly_module.get_device_function(
-      std::string("assemble_") + _name);
+    std::string kern_name = std::string("assemble_") + _name;
+    switch (integral_type) {
+           case IntegralType::cell:
+                   kern_name += std::string("_c");
+                   break;
+           case IntegralType::exterior_facet:
+                   kern_name += std::string("_ef");
+                   break;
+           case IntegralType::interior_facet:
+                   kern_name += std::string("_if");
+                   break;
+    }
+
+    kern_name += (form.rank() == 2) ? std::string("_mat") : std::string("_vec");
+
+    _assembly_kernel = _assembly_module.get_device_function(kern_name);
 
     if (form.rank() == 2 &&
         (_assembly_kernel_type == ASSEMBLY_KERNEL_LOOKUP_TABLE ||

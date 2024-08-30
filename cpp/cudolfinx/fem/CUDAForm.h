@@ -46,6 +46,7 @@ public:
   , _form(form)
   , _compiled(false)
   {
+    _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);  
   }
 
   /// Compile form on GPU
@@ -85,7 +86,7 @@ public:
 
   const CUDAFormConstants<T>& constants() { return _constants; }
 
-  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {return _dofmap_store.get_device_object(_form->function_spaces()[i]->dofmap()); }
+  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {return _dofmap_store.get_device_object(_form->function_spaces()[i]->dofmap().get()); }
 
   Form<T,U>* form() { return _form; }
 
@@ -105,10 +106,12 @@ public:
   }
 
 private:
-
-  CUDAFormCoefficients<T, U> _coefficients;
-  CUDAFormConstants<T> _constants;
+  // Cache of CUDADofMaps
   common::CUDAStore<DofMap, CUDADofMap> _dofmap_store;
+  // Form coefficients
+  CUDAFormCoefficients<T, U> _coefficients;
+  // Form Constants
+  CUDAFormConstants<T> _constants;
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>> _integrals;
   bool _compiled;
   Form<T,U>* _form;

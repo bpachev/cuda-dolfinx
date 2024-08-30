@@ -30,8 +30,8 @@ CUDADofMap::CUDADofMap()
 }
 
 CUDADofMap::CUDADofMap(
-  std::shared_ptr<const dolfinx::fem::DofMap> dofmap)
-  : CUDADofMap::CUDADofMap(*dofmap.get())
+  const dolfinx::fem::DofMap* dofmap)
+  : CUDADofMap::CUDADofMap(*dofmap)
 {
 }
 

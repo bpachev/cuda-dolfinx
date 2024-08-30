@@ -108,7 +108,7 @@ public:
         _device_coefficients.push_back(std::make_shared<CUDACoefficient<T,U>>(_coefficients[i]));
 	_coefficient_device_ptrs.push_back(_device_coefficients[i]->device_values());
         const fem::CUDADofMap* cuda_dofmap =
-          dofmap_store.get_device_object(_coefficients[i]->function_space()->dofmap()).get();
+          dofmap_store.get_device_object(_coefficients[i]->function_space()->dofmap().get()).get();
         dofmaps_num_dofs_per_cell[i] = cuda_dofmap->num_dofs_per_cell();
         dofmaps_dofs_per_cell[i] = cuda_dofmap->dofs_per_cell();
       }

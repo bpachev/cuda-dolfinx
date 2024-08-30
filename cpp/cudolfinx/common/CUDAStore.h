@@ -31,9 +31,7 @@ public:
 
   /// @brief Return stored device object, or update accordingly
   /// @param[in] host_object Shared pointer to the host-side object
-  std::shared_ptr<D> get_device_object(std::shared_ptr<const H> host_object) {
-    std::cout << "Calling get_device_object." << std::endl;
-    if (host_object.get() == nullptr) std::cout << "Called with nullptr" << std::endl;
+  std::shared_ptr<D> get_device_object(const H* host_object) {
     auto it = _map.find(host_object);
     if (it != _map.end()) return it->second;
     auto device_object = std::make_shared<D>(host_object);
@@ -42,8 +40,7 @@ public:
   }
 
 private:
-
-  std::map<std::shared_ptr<const H>, std::shared_ptr<D>> _map;  
+  std::map<const H*, std::shared_ptr<D>> _map;  
 };
 }
 

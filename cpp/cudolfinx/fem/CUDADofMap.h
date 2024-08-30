@@ -31,7 +31,7 @@ public:
   CUDADofMap(const dolfinx::fem::DofMap& dofmap);
 
   /// Alternate constructor
-  CUDADofMap(std::shared_ptr<const dolfinx::fem::DofMap> dofmap);
+  CUDADofMap(const dolfinx::fem::DofMap* dofmap);
 
   /// Destructor
   ~CUDADofMap();
