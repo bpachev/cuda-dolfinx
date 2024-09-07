@@ -3,7 +3,6 @@
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
-#include "caster_petsc.h"
 #include <cstdint>
 #include <dolfinx/fem/DirichletBC.h>
 #include <dolfinx/fem/DofMap.h>
@@ -22,6 +21,9 @@
 #include <cudolfinx/la/CUDAMatrix.h>
 #include <cudolfinx/la/CUDAVector.h>
 #include <cudolfinx/mesh/CUDAMesh.h>
+#include "caster_petsc.h"
+#include <petsc4py/petsc4py.h>
+#include <petscis.h>
 #include <cuda.h>
 #include <memory>
 #include <nanobind/nanobind.h>
@@ -36,8 +38,6 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
-#include <petsc4py/petsc4py.h>
-#include <petscis.h>
 #include <span>
 #include <string>
 #include <utility>

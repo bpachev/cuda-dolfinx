@@ -13,7 +13,6 @@ from dolfinx.fem.forms import Form
 from dolfinx.fem.function import Function, FunctionSpace
 from dolfinx.mesh import Mesh
 from dolfinx import fem as fe
-from dolfinx.fem.petsc import create_vector as create_petsc_vector, create_matrix as create_petsc_matrix
 from cudolfinx import cpp as _cucpp
 from petsc4py import PETSc
 import gc
@@ -30,6 +29,7 @@ def init_device():
 def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   """Create PETSc Vector on device
   """
+
   index_map = L.function_spaces[0].dofmap.index_map
   bs = L.function_spaces[0].dofmap.index_map_bs
   size = (index_map.size_local * bs, index_map.size_global * bs)
@@ -164,7 +164,7 @@ class CUDAAssembler:
 
     self.pack_coefficients(a, coeffs)
 
-    _cpp.fem.assemble_matrix_on_device(
+    _cucpp.fem.assemble_matrix_on_device(
        self._ctx, self._cpp_object, a._cuda_form,
        a._cuda_mesh, mat._cpp_object, _bc0, _bc1
     )
@@ -311,10 +311,12 @@ class CUDAAssembler:
         f"Expected either a list of DirichletBC's or a CUDADirichletBC, got '{type(bcs)}'"
       )
 
-    _bcs = bc_collection._get_cpp_bcs(V._cpp_object)
+    if hasattr(V, '_cpp_object'): _cppV = V._cpp_object
+    else: _cppV = V
+    _bcs = bc_collection._get_cpp_bcs(_cppV)
 
     if x0 is None:
-      _cpp.fem.set_bc_on_device(
+      _cucpp.fem.set_bc_on_device(
         self._ctx, self._cpp_object, 
         b._cpp_object, _bcs, scale
       )
@@ -335,7 +337,7 @@ class CUDAAssembler:
     """
 
     if not hasattr(a, '_cuda_form'):
-      raise ValueError("Please copy the form to the device by calling 'to_device' on the form before attempting assembly!")
+      self.to_device(a)
     
 class CUDAVector:
   """Vector on device
