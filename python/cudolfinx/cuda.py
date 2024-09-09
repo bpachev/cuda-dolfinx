@@ -198,7 +198,7 @@ class CUDAAssembler:
   def create_matrix(self, a: Form) -> CUDAMatrix:
     """Create a CUDAMatrix from a given form
     """
-    petsc_mat = _cpp.fem.petsc.create_cuda_matrix(a._cpp_object)
+    petsc_mat = _cucpp.fem.petsc.create_cuda_matrix(a._cpp_object)
     return CUDAMatrix(self._ctx, petsc_mat)
 
   def create_vector(self, b: Form) -> CUDAVector:

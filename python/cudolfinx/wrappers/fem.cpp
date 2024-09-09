@@ -213,23 +213,6 @@ template <typename T, typename U>
 void declare_cuda_funcs(nb::module_& m)
 {
 
-  m.def("copy_function_to_device",
-        [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::Function<T, U>& f)
-        {
-          //f.x()->to_device(cuda_context);
-	  //TODO:: determine if we are OK not passing cuda_context
-	  f.x()->to_device();
-        },
-        nb::arg("context"), nb::arg("f"), "Copy function data to GPU"); 
-
-  m.def("copy_function_space_to_device",
-        [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::FunctionSpace<T>& V)
-        {
-          //V.create_cuda_dofmap(cuda_context);
-	  //TODO find a workaround for moving the dofmap to the device. . . 
-        },
-        nb::arg("context"), nb::arg("V"), "Copy function space dofmap to GPU");
-
   m.def("pack_coefficients",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
           dolfinx::fem::CUDAForm<T,U>& cuda_form)
