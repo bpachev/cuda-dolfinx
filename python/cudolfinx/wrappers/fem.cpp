@@ -41,6 +41,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <ufcx.h>
 
 namespace nb = nanobind;
 
@@ -64,18 +65,20 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
 {
   using U = typename dolfinx::scalar_value_type_t<T>;
 
-  std::string formclass_name = std::string("CUDAForm_") + type;
-  nb::class_<dolfinx::fem::CUDAForm<T,U>>(m, formclass_name.c_str(), "Form on GPU")
+  std::string pyclass_name = std::string("CUDAForm_") + type;
+  nb::class_<dolfinx::fem::CUDAForm<T,U>>(m, pyclass_name.c_str(), "Form on GPU")
       .def(
           "__init__",
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
-              dolfinx::fem::Form<T,U>& form)
+              dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form)
              {
+	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
                  cuda_context,
-                 &form
+                 &form,
+		 p
                );
-             }, nb::arg("context"), nb::arg("form"))
+             }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"))
       .def(
           "compile",
           [](dolfinx::fem::CUDAForm<T,U>& cf, const dolfinx::CUDA::Context& cuda_context,
@@ -86,31 +89,6 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
              }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"))
       .def_prop_ro("compiled", &dolfinx::fem::CUDAForm<T,U>::compiled)
       .def("to_device", &dolfinx::fem::CUDAForm<T,U>::to_device);
-
-  std::string pyclass_name = std::string("CUDAFormIntegral_") + type;
-  nb::class_<dolfinx::fem::CUDAFormIntegral<T,U>>(m, pyclass_name.c_str(),
-                                                  "Form Integral on GPU")
-      .def(
-          "__init__",
-          [](dolfinx::fem::CUDAFormIntegral<T,U>* ci, const dolfinx::CUDA::Context& cuda_context,
-             const dolfinx::fem::Form<T,U>& form,
-             dolfinx::fem::IntegralType integral_type, int i, int32_t max_threads_per_block,
-             int32_t min_blocks_per_multiprocessor, int32_t num_vertices_per_cell,
-             int32_t num_coordinates_per_vertex, int32_t num_dofs_per_cell0,
-             int32_t num_dofs_per_cell1, enum dolfinx::fem::assembly_kernel_type assembly_kernel_type,
-             const char* cudasrcdir)
-             {
-               bool debug=true, verbose=false;
-               CUjit_target target = dolfinx::CUDA::get_cujit_target(cuda_context);
-               new (ci) dolfinx::fem::CUDAFormIntegral<T,U>(
-                   cuda_context, target, form, integral_type, i, max_threads_per_block,
-                   min_blocks_per_multiprocessor, num_vertices_per_cell, num_coordinates_per_vertex,
-                   num_dofs_per_cell0, num_dofs_per_cell1, assembly_kernel_type, debug, cudasrcdir, verbose);
-             },
-          nb::arg("context"), nb::arg("form"), nb::arg("integral_type"), nb::arg("i"), nb::arg("max_threads"),
-          nb::arg("min_blocks"), nb::arg("num_verts"), nb::arg("num_coords"),
-          nb::arg("num_dofs_per_cell0"), nb::arg("num_dofs_per_cell1"),
-          nb::arg("kernel_type"), nb::arg("tmpdir"));
 
   pyclass_name = std::string("CUDADirichletBC_") + type;
   nb::class_<dolfinx::fem::CUDADirichletBC<T,U>>(m, pyclass_name.c_str(),

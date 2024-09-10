@@ -21,6 +21,8 @@
 #include <cudolfinx/la/CUDAVector.h>
 #endif
 
+#include <ufcx.h>
+
 #if defined(HAS_CUDA_TOOLKIT)
 
 namespace dolfinx {
@@ -32,6 +34,10 @@ template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_type_t<T>>
 class CUDAForm
 {
+
+using cuda_kern = std::function<void(int*, const char***, const char***,
+                     const char**, const char**)>;
+
 public:
   /// Create GPU copies of data needed for assembly
   ///
@@ -39,14 +45,27 @@ public:
   /// @param[in] form Pointer to the variational form
   CUDAForm(
     const CUDA::Context& cuda_context,
-    Form<T,U>* form
+    Form<T,U>* form,
+    ufcx_form* ufcx_form
   )
   : _coefficients(cuda_context, form, _dofmap_store)
   , _constants(cuda_context, form)
   , _form(form)
+  , _ufcx_form(ufcx_form)
   , _compiled(false)
   {
-    _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);  
+    _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);
+    const int* integral_offsets = ufcx_form->form_integral_offsets;
+    for (int i = 0; i < 3; i++) {
+      for (int j = integral_offsets[i]; j < integral_offsets[i+1]; j++) {
+        int id = ufcx_form->form_integral_ids[integral_offsets[i] + j];
+        ufcx_integral* integral = ufcx_form->form_integrals[integral_offsets[i] + j];
+        cuda_kern k = reinterpret_cast<void (*)(
+        int*, const char*** , const char***, const char**,
+        const char**)>(integral->tabulate_tensor_cuda);
+        _cuda_integrals[j].insert({id, k});
+      }
+    } 
   }
 
   /// Compile form on GPU
@@ -59,7 +78,7 @@ public:
   {
     auto cujit_target = CUDA::get_cujit_target(cuda_context);
     _integrals = cuda_form_integrals(
-      cuda_context, cujit_target, *_form, assembly_kernel_type,
+      cuda_context, cujit_target, *_form, _cuda_integrals, assembly_kernel_type,
       max_threads_per_block, min_blocks_per_multiprocessor, false, NULL, false);
     _compiled = true;
   }
@@ -112,9 +131,13 @@ private:
   CUDAFormCoefficients<T, U> _coefficients;
   // Form Constants
   CUDAFormConstants<T> _constants;
+  // Compiled CUDA kernels
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>> _integrals;
+  // CUDA tabulate tensors 
+  std::array<std::map<int, cuda_kern>, 4> _cuda_integrals;
   bool _compiled;
   Form<T,U>* _form;
+  ufcx_form* _ufcx_form;
 };
 
 } // end namespace fem

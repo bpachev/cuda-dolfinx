@@ -21,7 +21,6 @@
 #include <cudolfinx/mesh/CUDAMesh.h>
 #include <cudolfinx/mesh/CUDAMeshEntities.h>
 #include <dolfinx/mesh/Mesh.h>
-#include <ufcx.h>
 
 #if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
@@ -83,6 +82,8 @@ enum assembly_kernel_type
 
 #if defined(HAS_CUDA_TOOLKIT)
 
+using cuda_kern = std::function<void(int*, const char***, const char***,
+                     const char**, const char**)>;
 
 /// low-level function to launch a CUDA kernel
 CUresult launch_cuda_kernel(
@@ -101,6 +102,9 @@ std::string cuda_kernel_binary_search(void);
 
 // Function to convert IntegralType to string
 std::string to_string(IntegralType integral_type);
+
+cuda_kern get_cuda_wrapper(std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
+	       	IntegralType type, int i);
 
 template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_type_t<T>>
@@ -671,6 +675,7 @@ public:
     const CUDA::Context& cuda_context,
     CUjit_target target,
     const Form<T,U>& form,
+    std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
     IntegralType integral_type, int i,
     int32_t max_threads_per_block,
     int32_t min_blocks_per_multiprocessor,
@@ -708,7 +713,7 @@ public:
                          target,
                          form.rank(),
                          _integral_type,
-                         form.cuda_kernel(_integral_type, i),
+			 get_cuda_wrapper(cuda_wrappers, _integral_type, i),
                          max_threads_per_block,
                          min_blocks_per_multiprocessor,
                          num_vertices_per_cell,
@@ -2022,6 +2027,7 @@ cuda_form_integrals(
   const CUDA::Context& cuda_context,
   CUjit_target target,
   const Form<T,U>& form,
+  std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
   enum assembly_kernel_type assembly_kernel_type,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
@@ -2061,7 +2067,7 @@ cuda_form_integrals(
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
         cuda_cell_integrals.emplace_back(
-          cuda_context, target, form, integral_type, i,
+          cuda_context, target, form, cuda_wrappers, integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
@@ -2081,7 +2087,7 @@ cuda_form_integrals(
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
         cuda_exterior_facet_integrals.emplace_back(
-          cuda_context, target, form, integral_type, i,
+          cuda_context, target, form, cuda_wrappers, integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
@@ -2101,7 +2107,7 @@ cuda_form_integrals(
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
         cuda_interior_facet_integrals.emplace_back(
-          cuda_context, target, form, integral_type, i,
+          cuda_context, target, form, cuda_wrappers, integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
