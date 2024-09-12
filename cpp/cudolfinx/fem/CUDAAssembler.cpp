@@ -165,7 +165,7 @@ std::string cuda_kernel_assembly_utils(void)
   return
     cuda_kernel_zero_double_array() + "\n" +
     cuda_kernel_pack_coefficients() + "\n" +
-    cuda_kernel_binary_search() + "\n" +
+    dolfinx::fem::cuda_kernel_binary_search() + "\n" +
     cuda_kernel_set_bc() + "\n" +
     cuda_kernel_add_diagonal();
 }

@@ -9,11 +9,8 @@
 #include <cudolfinx/common/CUDA.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/graph/AdjacencyList.h>
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 namespace mesh {
 
@@ -327,4 +324,3 @@ private:
 } // namespace mesh
 } // namespace dolfinx
 
-#endif

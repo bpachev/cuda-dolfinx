@@ -9,11 +9,7 @@
 #include <dolfinx/la/utils.h>
 #include <dolfinx/la/petsc.h>
 #include <iostream>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <petscmat.h>
 
 #if PETSC_VERSION_MAJOR >= 3 && (PETSC_VERSION_MINOR > 16 || (PETSC_VERSION_MINOR == 16 && PETSC_VERSION_SUBMINOR >= 2))
@@ -23,7 +19,6 @@
 using namespace dolfinx;
 using namespace dolfinx::la;
 
-#if defined(HAS_CUDA_TOOLKIT)
 //-----------------------------------------------------------------------------
 CUDASeqMatrix::CUDASeqMatrix()
   : _A(nullptr)
@@ -572,4 +567,3 @@ void CUDASeqMatrix::debug_dump()
   std::cout << "Dumping CUDASeqMatrix: nnz " << _num_local_nonzeros << " mean " << (sum/_num_local_nonzeros) << std::endl;
   free(vals);
 }
-#endif

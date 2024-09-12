@@ -9,17 +9,12 @@
 #include <dolfinx/la/utils.h>
 #include <dolfinx/la/petsc.h>
 #include <iostream>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <petscvec.h>
 
 using namespace dolfinx;
 using namespace dolfinx::la;
 
-#if defined(HAS_CUDA_TOOLKIT)
 //-----------------------------------------------------------------------------
 CUDAVector::CUDAVector()
   : _x(nullptr)
@@ -649,4 +644,3 @@ void CUDAVector::copy_vector_values_to_host(
   }
 }
 //-----------------------------------------------------------------------------
-#endif

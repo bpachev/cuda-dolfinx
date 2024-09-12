@@ -7,12 +7,8 @@
 #pragma once
 
 #include <cudolfinx/common/CUDA.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 namespace fem {
 class DofMap;
@@ -103,4 +99,3 @@ private:
 } // namespace fem
 } // namespace dolfinx
 
-#endif

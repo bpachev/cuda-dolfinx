@@ -1,7 +1,6 @@
 
 #pragma once
 
-
 #include <concepts>
 #include <cudolfinx/la/petsc.h>
 #include <dolfinx/fem/Form.h>

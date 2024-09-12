@@ -7,14 +7,9 @@
 #pragma once
 
 #include <cudolfinx/common/CUDA.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <petscmat.h>
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx::la
 {
 
@@ -166,4 +161,3 @@ private:
 };
 
 } // namespace dolfinx::la
-#endif

@@ -6,10 +6,8 @@
 
 #include "CUDA.h"
 
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
 #include <nvrtc.h>
-#endif
 
 #include <sys/stat.h>
 
@@ -26,7 +24,6 @@
 
 using namespace dolfinx;
 
-#if defined(HAS_CUDA_TOOLKIT)
 //-----------------------------------------------------------------------------
 CUDA::Context::Context()
 {
@@ -553,4 +550,3 @@ CUjit_target CUDA::get_cujit_target(const CUDA::Context& cuda_context)
   }
 }
 
-#endif

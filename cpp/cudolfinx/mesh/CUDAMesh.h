@@ -1,4 +1,4 @@
-// Copyright (C) 2020 James D. Trotter
+// Copyright (C) 2020-2024 James D. Trotter, Benjamin A. Pachev
 //
 // This file is part of DOLFINX (https://www.fenicsproject.org)
 //
@@ -9,14 +9,9 @@
 #include <cudolfinx/common/CUDA.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <cudolfinx/mesh/CUDAMeshEntities.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <vector>
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 namespace mesh {
 
@@ -303,4 +298,3 @@ private:
 } // namespace mesh
 } // namespace dolfinx
 
-#endif

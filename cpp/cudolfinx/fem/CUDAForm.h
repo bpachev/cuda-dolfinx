@@ -9,8 +9,6 @@
 
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/DirichletBC.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cudolfinx/common/CUDA.h>
 #include <cudolfinx/common/CUDAStore.h>
 #include <cudolfinx/fem/CUDADirichletBC.h>
@@ -19,11 +17,7 @@
 #include <cudolfinx/fem/CUDAFormConstants.h>
 #include <cudolfinx/fem/CUDAFormIntegral.h>
 #include <cudolfinx/la/CUDAVector.h>
-#endif
-
 #include <ufcx.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 
 namespace dolfinx {
 
@@ -143,5 +137,3 @@ private:
 } // end namespace fem
 
 } // end namespace dolfinx
-
-#endif

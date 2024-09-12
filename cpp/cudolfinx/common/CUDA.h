@@ -6,10 +6,7 @@
 
 #pragma once
 
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <memory>
 #include <string>
 
@@ -24,7 +21,6 @@ class Kernel;
 /// This class is a wrapper around a CUDA device context
 class Context
 {
-#if defined(HAS_CUDA_TOOLKIT)
 public:
   /// Create a CUDA device context
   Context();
@@ -57,14 +53,12 @@ public:
 private:
   CUdevice _device;
   CUcontext _context;
-#endif
 };
 
 /// This class is a wrapper around a module, which is obtained by
 /// compiling PTX assembly to CUDA device code.
 class Module
 {
-#if defined(HAS_CUDA_TOOLKIT)
 public:
   /// Create an empty module
   Module();
@@ -126,10 +120,8 @@ private:
 
   /// Error log messages related to loading the module
   char* _error_log;
-#endif
 };
 
-#if defined(HAS_CUDA_TOOLKIT)
 /// Use the NVIDIA CUDA Runtime Compilation (nvrtc) library to compile
 /// device-side code for a given CUDA program.
 std::string compile_cuda_cpp_to_ptx(
@@ -150,8 +142,6 @@ void safeDeviceGetAttribute(int * res, CUdevice_attribute attr, CUdevice dev);
 void safeCtxSynchronize();
 void safeStreamCreate(CUstream* streamptr, unsigned int flags);
 CUjit_target get_cujit_target(const Context& cuda_context);
-
-#endif
 
 } // namespace CUDA
 

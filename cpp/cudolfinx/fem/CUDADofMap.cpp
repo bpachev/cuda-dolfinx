@@ -8,15 +8,11 @@
 #include <cudolfinx/common/CUDA.h>
 #include <dolfinx/common/IndexMap.h>
 #include <dolfinx/fem/DofMap.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
 
 using namespace dolfinx;
 using namespace dolfinx::fem;
 
-#if defined(HAS_CUDA_TOOLKIT)
 //-----------------------------------------------------------------------------
 CUDADofMap::CUDADofMap()
   : _dofmap(nullptr)
@@ -233,4 +229,3 @@ CUDADofMap& CUDADofMap::operator=(CUDADofMap&& dofmap)
   return *this;
 }
 //-----------------------------------------------------------------------------
-#endif

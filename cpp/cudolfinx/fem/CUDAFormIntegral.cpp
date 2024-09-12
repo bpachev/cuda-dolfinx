@@ -12,8 +12,6 @@
 #include <dolfinx/fem/FunctionSpace.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <ufcx.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
 #include <cudolfinx/fem/CUDAFormIntegral.h>
 #include <cudolfinx/common/CUDA.h>
@@ -26,12 +24,10 @@
 #include <cudolfinx/la/CUDAVector.h>
 #include <cudolfinx/mesh/CUDAMesh.h>
 #include <cudolfinx/mesh/CUDAMeshEntities.h>
-#endif
 
 using namespace dolfinx;
 using namespace dolfinx::fem;
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace {
 
 // declarations of functions for generating code snippets
@@ -2271,4 +2267,3 @@ cuda_kern dolfinx::fem::get_cuda_wrapper(std::array<std::map<int, cuda_kern>, 4>
 }
 
 //-----------------------------------------------------------------------------
-#endif

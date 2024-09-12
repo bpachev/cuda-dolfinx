@@ -9,12 +9,8 @@
 #include <cudolfinx/common/CUDA.h>
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/utils.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 namespace fem {
 
@@ -166,4 +162,3 @@ private:
 } // namespace fem
 } // namespace dolfinx
 
-#endif

@@ -11,14 +11,11 @@
 #include <dolfinx/fem/DofMap.h>
 #include <dolfinx/fem/FunctionSpace.h>
 #include <dolfinx/common/IndexMap.h>
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
 
 #include <memory>
 #include <vector>
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 
 //namespace function {
@@ -45,7 +42,6 @@ public:
     , _num_boundary_dofs()
     , _ddof_markers(0)
     , _ddof_indices(0)
-    , _ddof_value_indices(0)
     , _ddof_values(0)
   {
   }
@@ -66,7 +62,6 @@ public:
     , _num_boundary_dofs()
     , _ddof_markers(0)
     , _ddof_indices(0)
-    , _ddof_value_indices(0)
     , _ddof_values(0)
   {
     CUresult cuda_err;
@@ -95,7 +90,6 @@ public:
     // Build dof markers, indices and values
     signed char* dof_markers = nullptr;
     std::vector<std::int32_t> dof_indices(_num_boundary_dofs);
-    std::vector<std::int32_t> dof_value_indices(_num_boundary_dofs);
     _num_owned_boundary_dofs = 0;
     _num_boundary_dofs = 0;
     for (auto const& bc : bcs) {
@@ -110,14 +104,12 @@ public:
         
         bc->mark_dofs(std::span(dof_markers, _num_dofs));
         auto const [dofs, range] = bc->dof_indices();
-        auto dof_value_inds = bc->dof_value_indices();
         for (std::int32_t i = 0; i < dofs.size(); i++) {
           dof_indices[_num_boundary_dofs + i] = dofs[i];
-          dof_value_indices[_num_boundary_dofs + i] = dof_value_inds[i];
         }
         _num_owned_boundary_dofs += range;
         _num_boundary_dofs += dofs.size();
-        bc->dof_values(_dof_values);
+        bc->set(_dof_values);
       }
     }
 
@@ -175,44 +167,12 @@ public:
       }
     }
 
-    // Allocate device-side storage for dof indices for the boundary values
-    if (_num_boundary_dofs > 0) {
-      size_t ddof_value_indices_size = _num_boundary_dofs * sizeof(std::int32_t);
-      cuda_err = cuMemAlloc(&_ddof_value_indices, ddof_value_indices_size);
-      if (cuda_err != CUDA_SUCCESS) {
-        if (_ddof_indices)
-          cuMemFree(_ddof_indices);
-        if (_ddof_markers)
-          cuMemFree(_ddof_markers);
-        cuGetErrorString(cuda_err, &cuda_err_description);
-        throw std::runtime_error(
-          "cuMemAlloc() failed with " + std::string(cuda_err_description) +
-          " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
-      }
-
-      // Copy dof indices to device
-      cuda_err = cuMemcpyHtoD(
-        _ddof_value_indices, dof_value_indices.data(), ddof_value_indices_size);
-      if (cuda_err != CUDA_SUCCESS) {
-        cuMemFree(_ddof_value_indices);
-        if (_ddof_indices)
-          cuMemFree(_ddof_indices);
-        if (_ddof_markers)
-          cuMemFree(_ddof_markers);
-        cuGetErrorString(cuda_err, &cuda_err_description);
-        throw std::runtime_error(
-          "cuMemcpyHtoD() failed with " + std::string(cuda_err_description) +
-          " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
-      }
-    }
 
     // Allocate device-side storage for dof values
     if (dof_markers && _num_dofs > 0) {
       size_t ddof_values_size = _num_dofs * sizeof(T);
       cuda_err = cuMemAlloc(&_ddof_values, ddof_values_size);
       if (cuda_err != CUDA_SUCCESS) {
-        if (_ddof_value_indices)
-          cuMemFree(_ddof_value_indices);
         if (_ddof_indices)
           cuMemFree(_ddof_indices);
         if (_ddof_markers)
@@ -228,8 +188,6 @@ public:
         _ddof_values, _dof_values.data(), ddof_values_size);
       if (cuda_err != CUDA_SUCCESS) {
         cuMemFree(_ddof_values);
-        if (_ddof_value_indices)
-          cuMemFree(_ddof_value_indices);
         if (_ddof_indices)
           cuMemFree(_ddof_indices);
         if (_ddof_markers)
@@ -247,8 +205,6 @@ public:
   {
     if (_ddof_values)
       cuMemFree(_ddof_values);
-    if (_ddof_value_indices)
-      cuMemFree(_ddof_value_indices);
     if (_ddof_indices)
       cuMemFree(_ddof_indices);
     if (_ddof_markers)
@@ -267,7 +223,6 @@ public:
     , _num_boundary_dofs(bc._num_boundary_dofs)
     , _ddof_markers(bc._ddof_markers)
     , _ddof_indices(bc._ddof_indices)
-    , _ddof_value_indices(bc._ddof_value_indices)
     , _ddof_values(bc._ddof_values)
   {
     bc._num_dofs = 0;
@@ -275,7 +230,6 @@ public:
     bc._num_boundary_dofs = 0;
     bc._ddof_markers = 0;
     bc._ddof_indices = 0;
-    bc._ddof_value_indices = 0;
     bc._ddof_values = 0;
   }
   //-----------------------------------------------------------------------------
@@ -292,14 +246,12 @@ public:
     _num_boundary_dofs = bc._num_boundary_dofs;
     _ddof_markers = bc._ddof_markers;
     _ddof_indices = bc._ddof_indices;
-    _ddof_value_indices = bc._ddof_value_indices;
     _ddof_values = bc._ddof_values;
     bc._num_dofs = 0;
     bc._num_owned_boundary_dofs = 0;
     bc._num_boundary_dofs = 0;
     bc._ddof_markers = 0;
     bc._ddof_indices = 0;
-    bc._ddof_value_indices = 0;
     bc._ddof_values = 0;
     return *this;
   }
@@ -362,9 +314,6 @@ private:
   /// boundary conditions
   CUdeviceptr _ddof_indices;
 
-  /// Indices of the degrees of freedom of the boundary value function
-  CUdeviceptr _ddof_value_indices;
-
   /// Values for each degree of freedom, indicating whether or not
   /// they are subject to essential boundary conditions
   CUdeviceptr _ddof_values;
@@ -373,4 +322,3 @@ private:
 } // namespace fem
 } // namespace dolfinx
 
-#endif

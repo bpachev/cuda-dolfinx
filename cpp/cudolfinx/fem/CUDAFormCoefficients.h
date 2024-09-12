@@ -8,26 +8,19 @@
 
 #include <dolfinx/fem/Form.h>
 
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cudolfinx/common/CUDA.h>
 #include <cudolfinx/common/CUDAStore.h>
 #include <cudolfinx/fem/CUDACoefficient.h>
 #include <cudolfinx/fem/CUDADofMap.h>
 #include <cudolfinx/la/CUDAVector.h>
-#endif
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/utils.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/fem/Function.h>
 #include <dolfinx/common/IndexMap.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <petscvec.h>
 
-#if defined(HAS_CUDA_TOOLKIT)
 namespace dolfinx {
 namespace fem {
 
@@ -395,4 +388,3 @@ private:
 
 } // namespace fem
 } // namespace dolfinx
-#endif

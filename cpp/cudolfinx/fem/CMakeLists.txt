@@ -14,9 +14,6 @@ set(HEADERS_fem
 target_sources(
   cudolfinx
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/CUDAAssembler.cpp
-          ${CMAKE_CURRENT_SOURCE_DIR}/CUDADirichletBC.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CUDADofMap.cpp
-          ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormConstants.cpp
-          ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormCoefficients.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormIntegral.cpp
 )

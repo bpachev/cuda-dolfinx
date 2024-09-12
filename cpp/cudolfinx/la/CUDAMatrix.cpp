@@ -11,17 +11,12 @@
 #include <dolfinx/la/petsc.h>
 #include <iostream>
 #include <vector>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <petscmat.h>
 
 using namespace dolfinx;
 using namespace dolfinx::la;
 
-#if defined(HAS_CUDA_TOOLKIT)
 //-----------------------------------------------------------------------------
 CUDAMatrix::CUDAMatrix()
   : _A(nullptr)
@@ -241,4 +236,3 @@ void CUDAMatrix::debug_dump()
   }
 }
 
-#endif

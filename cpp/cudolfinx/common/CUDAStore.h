@@ -6,11 +6,7 @@
 
 
 #pragma once
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cudolfinx/common/CUDA.h>
-#endif
-
 #include <map>
 
 namespace dolfinx::common

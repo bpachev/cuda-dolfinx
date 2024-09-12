@@ -55,7 +55,6 @@ class CUDAVector;
 namespace fem
 {
 
-#if defined(HAS_CUDA_TOOLKIT)
 /// Interface for GPU-accelerated assembly of variational forms.
 class CUDAAssembler
 {
@@ -945,7 +944,6 @@ private:
   /// Module for various useful device-side functions
   CUDA::Module _util_module;
 };
-#endif
 
 } // namespace fem
 } // namespace dolfinx

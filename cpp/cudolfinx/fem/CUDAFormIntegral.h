@@ -21,11 +21,7 @@
 #include <cudolfinx/mesh/CUDAMesh.h>
 #include <cudolfinx/mesh/CUDAMeshEntities.h>
 #include <dolfinx/mesh/Mesh.h>
-
-#if defined(HAS_CUDA_TOOLKIT)
 #include <cuda.h>
-#endif
-
 #include <map>
 #include <string>
 #include <vector>
@@ -79,8 +75,6 @@ enum assembly_kernel_type
      */
     NUM_ASSEMBLY_KERNEL_TYPES,
 };
-
-#if defined(HAS_CUDA_TOOLKIT)
 
 using cuda_kern = std::function<void(int*, const char***, const char***,
                      const char**, const char**)>;
@@ -2121,8 +2115,6 @@ cuda_form_integrals(
   return cuda_form_integrals;
 }
 
-
-#endif
 
 } // namespace fem
 } // namespace dolfinx
