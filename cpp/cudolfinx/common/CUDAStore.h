@@ -4,7 +4,6 @@
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
-
 #pragma once
 #include <cudolfinx/common/CUDA.h>
 #include <map>

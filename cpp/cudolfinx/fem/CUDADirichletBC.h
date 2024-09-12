@@ -1,4 +1,4 @@
-// Copyright (C) 2020 James D. Trotter
+// Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
 // This file is part of DOLFINX (https://www.fenicsproject.org)
 //

@@ -1,3 +1,9 @@
+// Copyright (C) 2024 Benjamin Pachev, James D. Trotter
+//
+// This file is part of DOLFINX (https://www.fenicsproject.org)
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
 #include "caster_petsc.h"
 #include <cudolfinx/fem/petsc.h>
 #include <nanobind/nanobind.h>
