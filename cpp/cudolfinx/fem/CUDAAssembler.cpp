@@ -196,6 +196,8 @@ static const char * nvrtc_options_gpuarch(
     case CU_TARGET_COMPUTE_80: return "--gpu-architecture=compute_80";
     case CU_TARGET_COMPUTE_86: return "--gpu-architecture=compute_86";
     case CU_TARGET_COMPUTE_87: return "--gpu-architecture=compute_87";
+    case CU_TARGET_COMPUTE_89: return "--gpu-architecture=compute_89";
+    case CU_TARGET_COMPUTE_90: return "--gpu-architecture=compute_90";
     default: return "";
     }
 }
