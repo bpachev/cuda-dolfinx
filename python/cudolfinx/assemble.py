@@ -17,6 +17,7 @@ from dolfinx.fem.bcs import DirichletBC
 from dolfinx.fem.forms import Form
 from dolfinx.fem.function import Function, FunctionSpace
 from dolfinx import fem as fe
+from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp
 from cudolfinx.bcs import CUDADirichletBC
 from cudolfinx.form import CUDAForm
@@ -24,13 +25,6 @@ from cudolfinx.la import CUDAMatrix, CUDAVector
 from petsc4py import PETSc
 import numpy as np
 
-def init_device():
-  """Initialize PETSc device
-  """
-
-  d = PETSc.Device()
-  d.create(PETSc.Device.Type.CUDA)
-  return d
 
 def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   """Create PETSc Vector on device
@@ -51,8 +45,7 @@ class CUDAAssembler:
     """Initialize the assembler
     """
 
-    self._device = init_device()
-    self._ctx = _cucpp.fem.CUDAContext()
+    self._ctx = get_cuda_context()
     self._tmpdir = tempfile.TemporaryDirectory()
     self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
 
@@ -86,6 +79,9 @@ class CUDAAssembler:
         accumulated.
 
     """
+
+    if not isinstance(a, CUDAForm):
+      raise TypeError("Expected CUDAForm, got '{type(a)}'")
 
     if mat is None:
       mat = self.create_matrix(a)
@@ -125,6 +121,9 @@ class CUDAAssembler:
         coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
            If an empty list is passed, no repacking will be performed.
     """
+
+    if not isinstance(b, CUDAForm):
+      raise TypeError("Expected CUDAForm, got '{type(b)}'")
 
     if vec is None:
       vec = self.create_vector(b)

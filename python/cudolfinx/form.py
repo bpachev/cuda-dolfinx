@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp
 from dolfinx import fem as fe
 from dolfinx import cpp as _cpp
@@ -18,7 +19,7 @@ class CUDAForm:
         """Initialize the wrapper
         """
 
-        self._ctx = _cucpp.fem.CUDAContext()
+        self._ctx = get_cuda_context()
         self._cuda_mesh = _create_mesh_on_device(form.mesh, self._ctx)
 
         self._dolfinx_form = form
@@ -35,33 +36,50 @@ class CUDAForm:
         # TODO expose these parameters to the user
         self._cuda_form.compile(self._ctx, max_threads_per_block=1024, min_blocks_per_multiprocessor=1)
 
+    def to_device(self):
+        """Copy host-side coefficients and constants to the device
+        """
+
+        self._cuda_form.to_device(self._ctx)
+
     @property
-    def cuda_form():
+    def cuda_form(self):
         """Return the underlying cpp CUDAForm
         """
 
         return self._cuda_form
 
     @property
-    def cuda_mesh():
+    def cuda_mesh(self):
         """Return the underlying cpp CUDAMesh"""
 
         return self._cuda_mesh
 
     @property
-    def dolfinx_form():
+    def dolfinx_form(self):
         """Return the underlying Dolfinx form
         """
 
         return self._dolfinx_form
 
+    @property
+    def function_spaces(self):
+        """Return a list of FunctionSpaces corresponding to the form
+        """
+
+        return self._dolfinx_form.function_spaces
+
 def form(form: ufl.Form, **kwargs):
     """Create a CUDAForm from a ufl form
     """
 
+    if not isinstance(form, ufl.Form):
+        raise TypeError("Expected form to be a ufl.Form, got type '{type(form)}'!")
+
     form_compiler_options = kwargs.get("form_compiler_options", dict())
     form_compiler_options["cuda"] = True
-    dolfinx_form = fe.form(form)
+    kwargs["form_compiler_options"] = form_compiler_options
+    dolfinx_form = fe.form(form, **kwargs)
     return CUDAForm(dolfinx_form)
 
 def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64], ctx: _cucpp.fem.CUDAContext):
