@@ -55,7 +55,7 @@ public:
         ufcx_integral* integral = ufcx_form->form_integrals[integral_offsets[i] + j];
         cuda_kern k = reinterpret_cast<void (*)(
         int*, const char*** , const char***, const char**,
-        const char**)>(integral->tabulate_tensor_cuda);
+        const char**)>(integral->tabulate_tensor_cuda_nvrtc);
         _cuda_integrals[i].insert({id, k});
       }
     } 

@@ -18,6 +18,7 @@ class CUDAVector:
     self._ctx = ctx
     self._cpp_object = _cucpp.fem.CUDAVector(ctx, self._petsc_vec)
 
+  @property
   def vector(self):
     """Return underlying PETSc vector
     """
@@ -49,6 +50,7 @@ class CUDAMatrix:
     self._ctx = ctx
     self._cpp_object = _cucpp.fem.CUDAMatrix(ctx, petsc_mat)
 
+  @property
   def mat(self):
     """Return underlying CUDA matrix
     """

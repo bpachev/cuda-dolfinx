@@ -48,7 +48,7 @@ def make_ufl():
   kappa = fe.Function(V)
   kappa.interpolate(lambda x: np.sin(x[0])*np.cos(x[1]))
 
-  cell_residual = (u*p*kappa + ufl.dot(ufl.grad(u), ufl.grad(p))) * ufl.dx
+  cell_residual = (ufl.exp(u)*p*kappa + ufl.dot(ufl.grad(u), ufl.grad(p))) * ufl.dx
   exterior_facet_residual = kappa*p * ufl.dot(ufl.grad(u), n) * ufl.ds
   interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u)), n("+")) * ufl.dS
 
@@ -107,14 +107,14 @@ def test_cuda_assembly():
     f = fe.form(form)
     vec1 = fe.assemble_vector(f)
     vec2 = asm.assemble_vector(cufem.form(form))
-    compare_vecs(vec1, vec2.vector())
+    compare_vecs(vec1, vec2.vector)
 
   for i, form in enumerate(ufl_forms['matrix']):
     f = fe.form(form)
     Mat1 = fe.assemble_matrix(f, bcs=ufl_forms['bcs'])
     Mat2 = asm.assemble_matrix(cufem.form(form), bcs=ufl_forms['bcs'])
     # now we need to compare the two
-    compare_mats(Mat1, Mat2.mat())
+    compare_mats(Mat1, Mat2.mat)
 
 def test_reassembly():
   """Ensure correct assembly when coefficients are updated
@@ -128,7 +128,7 @@ def test_reassembly():
   asm = cufem.CUDAAssembler()
   vec_cuda = asm.assemble_vector(cuda_vec_form)
   vec_fe = fe.assemble_vector(vec_form)
-  compare_vecs(vec_fe, vec_cuda.vector())
+  compare_vecs(vec_fe, vec_cuda.vector)
 
   for d in [2,3]:
     coeff.interpolate(lambda x: x[0]**d + x[1]**d)
@@ -137,7 +137,7 @@ def test_reassembly():
     fe.assemble_vector(vec_fe.array, vec_form)
     asm.assemble_vector(cuda_vec_form, vec_cuda)
 
-    compare_vecs(vec_fe, vec_cuda.vector())
+    compare_vecs(vec_fe, vec_cuda.vector)
 
 def test_lifting():
   """Ensure lifting and bc setting work correctly
@@ -151,11 +151,11 @@ def test_lifting():
     vec_fe = fe.assemble_vector(L)
     cuda_a = cufem.form(mat_form)
     a = cuda_a.dolfinx_form
-    compare_vecs(vec_fe, vec_cuda.vector())
+    compare_vecs(vec_fe, vec_cuda.vector)
     fe.set_bc(vec_fe.array, ufl_forms['bcs'])
     asm.set_bc(vec_cuda, ufl_forms['bcs'], L.function_spaces[0])
-    compare_vecs(vec_fe, vec_cuda.vector())
+    compare_vecs(vec_fe, vec_cuda.vector)
     fe.apply_lifting(vec_fe.array, [a], [ufl_forms['bcs']])
     asm.apply_lifting(vec_cuda, [cuda_a], [ufl_forms['bcs']])
-    compare_vecs(vec_fe, vec_cuda.vector())
+    compare_vecs(vec_fe, vec_cuda.vector)
 
