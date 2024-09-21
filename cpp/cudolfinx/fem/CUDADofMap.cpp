@@ -45,21 +45,39 @@ CUDADofMap::CUDADofMap(
   CUresult cuda_err;
   const char * cuda_err_description;
 
-  // Obtain the cellwise-to-global mapping of the degrees of freedom
-  const common::IndexMap& index_map = *dofmap.index_map;
-  const int block_size = dofmap.index_map_bs(); 
-  _num_dofs = block_size * (
-		  index_map.size_local() + index_map.num_ghosts());
   auto dofs = dofmap.map();
-  // I'm pretty sure about this one, but not 100%
+  auto element_dof_layout = dofmap.element_dof_layout();
+  // get block sizes and ensure positivity (sometimes the default is -1)
+  std::int32_t element_block_size = element_dof_layout.block_size();
+  std::int32_t block_size = dofmap.bs();
+  element_block_size = (element_block_size < 0) ? 1 : element_block_size;
+  block_size = (block_size < 0) ? 1 : block_size;
   _num_cells = dofs.extent(0);
-  _num_dofs_per_cell = dofmap.element_dof_layout().num_dofs();
-  const std::int32_t* dofs_per_cell = dofs.data_handle();
+  _num_dofs_per_cell = element_dof_layout.num_dofs() * element_block_size;
+  _num_dofs = dofs.size() * block_size;
+  std::vector<std::int32_t> unrolled_dofs;
+  const std::int32_t* dofs_per_cell;
+
+  if (_num_dofs != _num_cells * _num_dofs_per_cell) {
+    throw std::runtime_error(
+       "Num dofs " + std::to_string(_num_dofs) + " != " + std::to_string(_num_cells) +
+       "*" + std::to_string(_num_dofs_per_cell) + " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
+  }
+  if (block_size == 1) {
+    dofs_per_cell = dofs.data_handle();
+  }
+  else {
+    unrolled_dofs.resize(_num_dofs);
+    const std::int32_t* dofs_1d = dofs.data_handle();
+    for (std::size_t i = 0; i < _num_dofs; i++)
+      unrolled_dofs[i] = block_size*dofs_1d[i/block_size] + i%block_size;
+
+    dofs_per_cell = unrolled_dofs.data();
+  }
 
   // Allocate device-side storage for degrees of freedom
   if (_num_cells > 0 && _num_dofs_per_cell > 0) {
-    size_t ddofs_per_cell_size =
-      _num_cells * _num_dofs_per_cell * sizeof(int32_t);
+    size_t ddofs_per_cell_size = _num_dofs * sizeof(int32_t);
     cuda_err = cuMemAlloc(
       &_ddofs_per_cell,
       ddofs_per_cell_size);
@@ -81,7 +99,9 @@ CUDADofMap::CUDADofMap(
         " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
     }
   }
-
+  // cells_per_dof_ptr and cells_per_dof are only used for
+  // lookup table computations, which currently aren't in use
+/*
   // Compute mapping from degrees of freedom to cells
   std::vector<int32_t> cells_per_dof_ptr(_num_dofs+1);
 
@@ -179,7 +199,7 @@ CUDADofMap::CUDADofMap(
         "cuMemcpyHtoD() failed with " + std::string(cuda_err_description) +
         " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
     }
-  }
+  }*/
 }
 //-----------------------------------------------------------------------------
 CUDADofMap::~CUDADofMap()

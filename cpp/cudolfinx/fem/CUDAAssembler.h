@@ -790,25 +790,25 @@ public:
   }
 
   //-----------------------------------------------------------------------------
-  /// Adds a value to the diagonal entries of a matrix that belong to
+  /// Set a value on the diagonal entries of a matrix that belong to
   /// rows where a Dirichlet boundary condition applies. This function
   /// is typically called after assembly. The assembly function does
   /// not add any contributions to rows and columns that are affected
-  /// by Dirichlet boundary conditions. This function adds a value
-  /// only to rows that are locally owned, and therefore does not
+  /// by Dirichlet boundary conditions. This function sets a value
+  /// only for rows that are locally owned, and therefore does not
   /// create a need for parallel communication. For block matrices,
   /// this function should normally be called only on the diagonal
   /// blocks, that is, blocks for which the test and trial spaces are
   /// the same.
   ///
   /// @param[in] cuda_context A context for a CUDA device
-  /// @param[in,out] A The matrix to add diagonal values to
+  /// @param[in,out] A The matrix to set diagonal values for
   /// @param[in] bc The Dirichlet boundary condtions
-  /// @param[in] diagonal The value to add to the diagonal for rows with a
+  /// @param[in] diagonal The value to set on the diagonal for rows with a
   ///                     boundary condition applied
   template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_type_t<T>>
-  void add_diagonal(
+  void set_diagonal(
     const CUDA::Context& cuda_context,
     dolfinx::la::CUDAMatrix& A,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc,
@@ -819,7 +819,7 @@ public:
 
     // Fetch the device-side kernel
     CUfunction kernel = _util_module.get_device_function(
-      "add_diagonal");
+      "set_diagonal");
 
     // Compute a block size with high occupancy
     int min_grid_size;

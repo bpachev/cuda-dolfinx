@@ -33,7 +33,6 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
 
   // The CUDA assembly kernels aren't currently robust to matrices with variable block size
   // So for now always unroll to 1
-  
   _row_ptr.resize(m+1);
   _row_ptr[0] = 0;
   _column_indices.resize(_edges.size()*bs[0]*bs[1]);
@@ -52,7 +51,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
 
     for (std::size_t j = 0; j < row_nnz; j++) {
       for (std::size_t k = 0; k < bs[1]; k++)
-        _column_indices[unrolled_edge_index + j*bs[1] + k] = _edges[edge_index+j] + k;
+        _column_indices[unrolled_edge_index + j*bs[1] + k] = bs[1]*_edges[edge_index+j] + k;
     }
     // Unroll row block 
     for (std::size_t l = 1; l < bs[0]; l++)
@@ -62,7 +61,6 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
     edge_index += row_nnz;
     unrolled_edge_index += bs[0] * unrolled_row_nnz;
   }
-
   /*if (bs[0] == bs[1])
   {
     _row_ptr.resize(maps[0]->size_local() + 1);

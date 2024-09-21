@@ -124,14 +124,16 @@ std::string cuda_kernel_set_bc(void)
     "}\n";
 }
 
-/// CUDA C++ code for adding values to diagonal matrix entries
-std::string cuda_kernel_add_diagonal(void)
+/// CUDA C++ code for setting values to diagonal matrix entries
+/// TODO support both adding and setting
+/// The usual use case is setting
+std::string cuda_kernel_set_diagonal(void)
 {
   return
     "/**\n"
-    " * `add_diagonal()` adds a value to given diagonal matrix entries.\n"
+    " * `set_diagonal()` sets a value for given diagonal matrix entries.\n"
     " */\n"
-    "extern \"C\" __global__ void add_diagonal(\n"
+    "extern \"C\" __global__ void set_diagonal(\n"
     "  int num_diagonals,\n"
     "  const int* __restrict__ diagonals,\n"
     "  double diagonal_value,\n"
@@ -154,7 +156,7 @@ std::string cuda_kernel_add_diagonal(void)
     "      column, &r);\n"
     "    if (err) continue;\n"
     "    r += row_ptr[row];\n"
-    "    values[r] += diagonal_value;\n"
+    "    values[r] = diagonal_value;\n"
     "  }\n"
     "}\n";
 }
@@ -167,7 +169,7 @@ std::string cuda_kernel_assembly_utils(void)
     cuda_kernel_pack_coefficients() + "\n" +
     dolfinx::fem::cuda_kernel_binary_search() + "\n" +
     cuda_kernel_set_bc() + "\n" +
-    cuda_kernel_add_diagonal();
+    cuda_kernel_set_diagonal();
 }
 
 void CUdeviceptr_free(CUdeviceptr* p)

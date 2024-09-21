@@ -112,7 +112,6 @@ public:
         bc->set(_dof_values);
       }
     }
-
     // Allocate device-side storage for dof markers
     if (dof_markers && _num_dofs > 0) {
       size_t ddof_markers_size = _num_dofs * sizeof(char);

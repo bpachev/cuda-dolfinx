@@ -2109,7 +2109,6 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
     &program_include_names, &tabulate_tensor_src,
     &tabulate_tensor_function_name);
   // Generate CUDA C++ code for the assembly kernel
-
   // extract the factory/integral name from the tabulate tensor name
   factory_name = std::string(tabulate_tensor_function_name);
   std::string pref = std::string("tabulate_tensor");

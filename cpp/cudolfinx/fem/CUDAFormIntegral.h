@@ -2043,11 +2043,11 @@ cuda_form_integrals(
   int32_t num_dofs_per_cell1 = 1;
   if (form.rank() > 0) {
     const DofMap& dofmap0 = *form.function_spaces()[0]->dofmap();
-    num_dofs_per_cell0 = dofmap0.element_dof_layout().num_dofs();
+    num_dofs_per_cell0 = dofmap0.element_dof_layout().num_dofs() * dofmap0.element_dof_layout().block_size();
   }
   if (form.rank() > 1) {
     const DofMap& dofmap1 = *form.function_spaces()[1]->dofmap();
-    num_dofs_per_cell1 = dofmap1.element_dof_layout().num_dofs();
+    num_dofs_per_cell1 = dofmap1.element_dof_layout().num_dofs() * dofmap1.element_dof_layout().block_size();
   }
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>
     cuda_form_integrals;

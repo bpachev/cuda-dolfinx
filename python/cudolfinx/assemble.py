@@ -52,7 +52,7 @@ class CUDAAssembler:
   def assemble_matrix(self,
       a: CUDAForm,
       mat: typing.Optional[_cucpp.fem.CUDAMatrix] = None,
-      bcs: typing.Optional[typing.Union[list[DirichletBC], CUDADirichletBC]] = None,
+      bcs: typing.Optional[typing.Union[list[DirichletBC], CUDADirichletBC]] = [],
       diagonal: float = 1.0,
       constants: typing.Optional[list] = None,
       coeffs: typing.Optional[list] = None
@@ -97,7 +97,9 @@ class CUDAAssembler:
 
     _bc0 = bc_collection._get_cpp_bcs(a.dolfinx_form.function_spaces[0])
     _bc1 = bc_collection._get_cpp_bcs(a.dolfinx_form.function_spaces[1])
-
+    # For now always re-copy to device on assembly
+    # This assumes something has changed on the host
+    a.to_device() 
     self.pack_coefficients(a, coeffs)
 
     _cucpp.fem.assemble_matrix_on_device(
@@ -127,7 +129,9 @@ class CUDAAssembler:
 
     if vec is None:
       vec = self.create_vector(b)
-   
+    # For now always re-copy to device on assembly
+    # This assumes something has changed on the host
+    b.to_device() 
     self.pack_coefficients(b, coeffs) 
     _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b.cuda_form,
       b.cuda_mesh, vec._cpp_object)
@@ -136,13 +140,16 @@ class CUDAAssembler:
   def create_matrix(self, a: CUDAForm) -> CUDAMatrix:
     """Create a CUDAMatrix from a given form
     """
+    if not isinstance(a, CUDAForm):
+      raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
     petsc_mat = _cucpp.fem.petsc.create_cuda_matrix(a.dolfinx_form._cpp_object)
     return CUDAMatrix(self._ctx, petsc_mat)
 
   def create_vector(self, b: CUDAForm) -> CUDAVector:
     """Create a CUDAVector from a given form
     """
-
+    if not isinstance(b, CUDAForm):
+      raise TypeError(f"Expected CUDAForm, got type '{type(b)}'.")
     petsc_vec = create_petsc_cuda_vector(b.dolfinx_form)
     return CUDAVector(self._ctx, petsc_vec)
 
@@ -159,6 +166,8 @@ class CUDAAssembler:
   def pack_coefficients(self, a: CUDAForm, coefficients: typing.Optional[list[Function]]=None):
     """Pack coefficients on device
     """
+    if not isinstance(a, CUDAForm):
+      raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
   
     if coefficients is None:
       _cucpp.fem.pack_coefficients(self._ctx, self._cpp_object, a.cuda_form)
