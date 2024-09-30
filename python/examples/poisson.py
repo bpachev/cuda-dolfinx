@@ -55,13 +55,14 @@ def main(res, cuda=True):
         a = cufem.form(a)
         asm = cufem.CUDAAssembler()
         A = asm.create_matrix(a)
+        device_bcs = asm.pack_bcs([bc])
     else:
-        a = fe.form(a)
+        a = fe.form(a, jit_options = {"cffi_extra_compile_args":["-O3", "-mcpu=neoverse-v2"]})
         A = fe_petsc.create_matrix(a)
 
     start = time.time()
     if cuda:
-        asm.assemble_matrix(a, A, bcs=[bc])
+        asm.assemble_matrix(a, A, bcs=device_bcs)
     else:
         fe_petsc.assemble_matrix(A, a, bcs=[bc])
         A.assemble()

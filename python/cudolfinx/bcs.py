@@ -21,6 +21,9 @@ class CUDADirichletBC:
     self._function_spaces = []
     self._cpp_bc_objects = []
     self._ctx = ctx
+    # Prepopulate cache of CUDADirichletBC objects
+    for bc in bcs:
+        self._get_cpp_bcs(bc.function_space)
 
   def _get_cpp_bcs(self, V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64]):
     """Create cpp CUDADirichletBC object

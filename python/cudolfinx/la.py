@@ -57,8 +57,11 @@ class CUDAMatrix:
 
     return self._petsc_mat
 
-  def to_host(self):
-    """Copy device-side values to host
+  def assemble(self):
+    """Call assemble on the underlying PETSc matrix.
+
+    If the PETSc matrix is not a CUDA matrix, then matrix 
+    values will be explicitly copied to the host.
     """
 
     self._cpp_object.to_host(self._ctx)
