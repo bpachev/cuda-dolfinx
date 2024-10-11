@@ -13,7 +13,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "fenics-cudolfinx"
-version = "0.8.0"
+version = "0.9.0"
 description = "CUDA DOLFINx Python interface"
 readme = "../README.md"
 requires-python = ">=3.9.0"
@@ -27,10 +27,10 @@ dependencies = [
       "cffi",
       "petsc4py",
       "mpi4py",
-      "fenics-basix>=0.8.0,<0.9.0",
-      "fenics-dolfinx>=0.8.0,<0.9.0",
-      "fenics-ffcx>=0.8.0,<0.9.0",
-      "fenics-ufl>=2024.1.0,<2024.2.0",
+      "fenics-basix>=0.9.0,<0.10.0",
+      "fenics-dolfinx>=0.9.0,<0.10.0",
+      "fenics-ffcx>=0.9.0,<0.10.0",
+      "fenics-ufl>=2024.2.0,<2024.3.0",
 ]
 
 [project.optional-dependencies]

@@ -28,12 +28,12 @@ def create_mesh(res: int = 10):
             cell_type = mesh.CellType.tetrahedron
         )
 
-def main(res, cuda=True):
+def main(res, cuda=True, degree=1):
     """Assembles a stiffness matrix for the Poisson problem with the given resolution.
     """
 
     domain = create_mesh(res)
-    V = fe.functionspace(domain, ("Lagrange", 1))
+    V = fe.functionspace(domain, ("Lagrange", degree))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     x = ufl.SpatialCoordinate(domain)
@@ -79,7 +79,8 @@ def main(res, cuda=True):
 if __name__ == "__main__":
     parser = ap.ArgumentParser()
     parser.add_argument("--res", default=10, type=int, help="Number of subdivisions in each dimension.")
+    parser.add_argument("--degree", default=1, type=int, help="Polynomial degree.")
     parser.add_argument("--no-cuda", default=False, action="store_true", help="Disable GPU acceleration.")
     args = parser.parse_args()
 
-    main(res=args.res, cuda = not args.no_cuda)
+    main(res=args.res, cuda = not args.no_cuda, degree=args.degree)

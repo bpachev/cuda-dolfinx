@@ -30,7 +30,9 @@ def create_mesh(res: int = 10):
             comm = MPI.COMM_WORLD,
             points = ((0,0,0), (1, 1, 1)),
             n = (res, res, res),
-            cell_type = mesh.CellType.hexahedron
+            cell_type = mesh.CellType.hexahedron,
+            ghost_mode = mesh.GhostMode.none,
+            dtype = np.float64
         )
 
 def main(res, cuda=True, sum_factorization=True, degree=1):
