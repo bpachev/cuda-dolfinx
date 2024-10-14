@@ -1,6 +1,6 @@
 // Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
-// This file is part of DOLFINX (https://www.fenicsproject.org)
+// This file is part of cuDOLFINX
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -109,7 +109,7 @@ public:
         }
         _num_owned_boundary_dofs += range;
         _num_boundary_dofs += dofs.size();
-        bc->set(_dof_values);
+        bc->set(std::span<T>(_dof_values), {}, 1);
       }
     }
     // Allocate device-side storage for dof markers
@@ -260,7 +260,7 @@ public:
   /// The user is responsible for ensuring the provided conditions are in the original list
   void update(const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T,U>>>& bcs) {
     for (auto const& bc: bcs) {
-      bc->dof_values(_dof_values);
+      bc->set(std::span<T>(_dof_values), {});
     }
 
     CUDA::safeMemcpyHtoD(_ddof_values, _dof_values.data(), _num_dofs * sizeof(T));

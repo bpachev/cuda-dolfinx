@@ -1,6 +1,6 @@
-# Copyright (C) 2024 Benjamin Pachev, James D. Trotter
+# Copyright (C) 2024 Benjamin Pachev
 #
-# This file is part of DOLFINX (https://www.fenicsproject.org)
+# This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 

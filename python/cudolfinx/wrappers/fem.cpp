@@ -1,6 +1,6 @@
 // Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
-// This file is part of DOLFINX (https://www.fenicsproject.org)
+// This file is part of cuDOLFINX
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -16,9 +16,6 @@
 #include <cudolfinx/fem/CUDADirichletBC.h>
 #include <cudolfinx/fem/CUDADofMap.h>
 #include <cudolfinx/fem/CUDAForm.h>
-#include <cudolfinx/fem/CUDAFormIntegral.h>
-#include <cudolfinx/fem/CUDAFormConstants.h>
-#include <cudolfinx/fem/CUDAFormCoefficients.h>
 #include <cudolfinx/la/CUDAMatrix.h>
 #include <cudolfinx/la/CUDAVector.h>
 #include <cudolfinx/mesh/CUDAMesh.h>
@@ -71,15 +68,20 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
       .def(
           "__init__",
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
-              dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form)
+              dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form,
+	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources)
              {
 	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
                  cuda_context,
                  &form,
-		 p
+		 p,
+		 tabulate_tensor_names,
+		 tabulate_tensor_sources
                );
-             }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"))
+             }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"),
+	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources")
+	     )
       .def(
           "compile",
           [](dolfinx::fem::CUDAForm<T,U>& cf, const dolfinx::CUDA::Context& cuda_context,
@@ -105,18 +107,6 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
              },
           nb::arg("context"), nb::arg("V"), nb::arg("bcs"))
       .def("update", &dolfinx::fem::CUDADirichletBC<T,U>::update, nb::arg("bcs"));
-
-  pyclass_name = std::string("CUDAFormConstants_") + type;
-  nb::class_<dolfinx::fem::CUDAFormConstants<T>>(m, pyclass_name.c_str(),
-                                                 "Form Constants on GPU")
-      .def(
-          "__init__",
-          [](dolfinx::fem::CUDAFormConstants<T>* fc, const dolfinx::CUDA::Context& cuda_context,
-             const dolfinx::fem::Form<T>* form)
-            {
-              new (fc) dolfinx::fem::CUDAFormConstants<T>(cuda_context, form);
-            }, nb::arg("context"), nb::arg("form")
-      );
 
   std::string pyclass_cumesh_name = std::string("CUDAMesh_") + type;
   nb::class_<dolfinx::mesh::CUDAMesh<T>>(m, pyclass_cumesh_name.c_str(),

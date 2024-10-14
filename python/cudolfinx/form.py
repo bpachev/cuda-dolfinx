@@ -1,11 +1,11 @@
-# Copyright (C) 2024 Benjamin Pachev, James D. Trotter
+# Copyright (C) 2024 Benjamin Pachev
 #
-# This file is part of DOLFINX (https://www.fenicsproject.org)
+# This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from cudolfinx.context import get_cuda_context
-from cudolfinx import cpp as _cucpp
+from cudolfinx import cpp as _cucpp, jit
 from dolfinx import fem as fe
 from dolfinx import cpp as _cpp
 import typing
@@ -23,15 +23,29 @@ class CUDAForm:
         self._cuda_mesh = _create_mesh_on_device(form.mesh, self._ctx)
 
         self._dolfinx_form = form
+        self._wrapped_tabulate_tensors = jit.get_wrapped_tabulate_tensors(form)
         ufcx_form_addr = form.module.ffi.cast("uintptr_t", form.module.ffi.addressof(form.ufcx_form))
 
         cpp_form = form._cpp_object
         if type(cpp_form) is _cpp.fem.Form_float32:
-            self._cuda_form = _cucpp.fem.CUDAForm_float32(self._ctx, cpp_form, ufcx_form_addr)
+            form_cls = _cucpp.fem.CUDAForm_float32
         elif type(cpp_form) is _cpp.fem.Form_float64:
-            self._cuda_form = _cucpp.fem.CUDAForm_float64(self._ctx, cpp_form, ufcx_form_addr)
+            form_cls = _cucpp.fem.CUDAForm_float64
         else:
             raise ValueError(f"Cannot instantiate CUDAForm for Form of type {type(cpp_form)}!")
+
+        _tabulate_tensor_names = []
+        _tabulate_tensor_sources = []
+        for name, source in self._wrapped_tabulate_tensors:
+            _tabulate_tensor_names.append(name)
+            _tabulate_tensor_sources.append(source)
+        self._cuda_form = form_cls(
+                self._ctx,
+                cpp_form,
+                ufcx_form_addr,
+                _tabulate_tensor_names,
+                _tabulate_tensor_sources
+        )
 
         # TODO expose these parameters to the user
         self._cuda_form.compile(self._ctx, max_threads_per_block=1024, min_blocks_per_multiprocessor=1)
@@ -76,9 +90,6 @@ def form(form: ufl.Form, **kwargs):
     if not isinstance(form, ufl.Form):
         raise TypeError("Expected form to be a ufl.Form, got type '{type(form)}'!")
 
-    form_compiler_options = kwargs.get("form_compiler_options", dict())
-    form_compiler_options["cuda"] = True
-    kwargs["form_compiler_options"] = form_compiler_options
     dolfinx_form = fe.form(form, **kwargs)
     return CUDAForm(dolfinx_form)
 

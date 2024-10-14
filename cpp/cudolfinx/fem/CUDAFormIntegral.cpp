@@ -1,6 +1,6 @@
 // Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
-// This file is part of DOLFINX (https://www.fenicsproject.org)
+// This file is part of cuDOLFINX
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -2081,9 +2081,7 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
   CUjit_target target,
   int form_rank,
   IntegralType integral_type,
-  std::function<void(int*, const char***, const char***,
-                     const char**, const char**)>
-  cuda_tabulate,
+  std::pair<std::string, std::string> tabulate_tensor_source,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
   int32_t num_vertices_per_cell,
@@ -2099,15 +2097,11 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
 {
   // Obtain the automatically generated CUDA C++ code for the
   // element matrix kernel (tabulate_tensor).
-  int num_program_headers;
-  const char** program_headers;
-  const char** program_include_names;
-  const char* tabulate_tensor_src;
-  const char* tabulate_tensor_function_name;
-  cuda_tabulate(
-    &num_program_headers, &program_headers,
-    &program_include_names, &tabulate_tensor_src,
-    &tabulate_tensor_function_name);
+  int num_program_headers = 0;
+  const char** program_headers = NULL;
+  const char** program_include_names = NULL;
+  const char* tabulate_tensor_src = tabulate_tensor_source.second.c_str();
+  const char* tabulate_tensor_function_name = tabulate_tensor_source.first.c_str();
   // Generate CUDA C++ code for the assembly kernel
   // extract the factory/integral name from the tabulate tensor name
   factory_name = std::string(tabulate_tensor_function_name);
@@ -2255,14 +2249,15 @@ std::string dolfinx::fem::cuda_kernel_binary_search(void)
     "}\n";
 }
 //-----------------------------------------------------------------------------
-cuda_kern dolfinx::fem::get_cuda_wrapper(std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
-	       	IntegralType type, int i)
+std::pair<std::string, std::string> dolfinx::fem::get_cuda_wrapper(
+  std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
+  IntegralType integral_type,
+  int id)
 {
-  auto integrals = cuda_wrappers[static_cast<std::size_t>(type)];
-  if (auto it = integrals.find(i); it != integrals.end())
-    return it->second;
-  else
+  auto integrals = cuda_wrappers[static_cast<std::size_t>(integral_type)];
+  auto it = integrals.find(id);
+  if (it == integrals.end())
     throw std::runtime_error("No kernel for requested domain index.");
+  return it->second;
 }
-
 //-----------------------------------------------------------------------------

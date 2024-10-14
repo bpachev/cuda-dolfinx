@@ -1,8 +1,16 @@
+# Copyright (C) 2024 Benjamin Pachev
+#
+# This file is part of cuDOLFINX
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 """Routines for manipulating generated FFCX code
 """
 
-from dolfinx import fem
+from dolfinx import fem, cpp
+import numpy as np
 import pathlib
+from typing import *
 
 def get_tabulate_tensor_sources(form: fem.Form):
     """Given a compiled fem.Form, extract the C source code of the tabulate tensors
@@ -46,4 +54,59 @@ def get_tabulate_tensor_sources(form: fem.Form):
 
     id_order = {integral_id: i for i, integral_id in enumerate(ordered_integral_ids)}
     return sorted(tabulate_tensors, key=lambda tabulate: id_order[tabulate[0]])
+
+cuda_tabulate_tensor_header = """
+    #define alignas(x)
+    #define restrict __restrict__
+    
+    typedef unsigned char uint8_t;
+    typedef unsigned int uint32_t;
+    typedef double ufc_scalar_t;
+    
+    extern "C" __global__
+    void tabulate_tensor_{factory_name}({scalar_type}* restrict A,
+                                        const {scalar_type}* restrict w,
+                                        const {scalar_type}* restrict c,
+                                        const {geom_type}* restrict coordinate_dofs,
+                                        const int* restrict entity_local_index,
+                                        const uint8_t* restrict quadrature_permutation
+                                        )
+"""
+
+def _convert_dtype_to_str(dtype: Any):
+    """Convert numpy dtype to named C type
+    """
+
+    if dtype == np.float32:
+        return "float"
+    elif dtype == np.float64:
+        return "double"
+    else:
+        raise TypeError(f"Unsupported dtype: '{dtype}'")    
+
+def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
+    """Given a fem.Form, wrap the tabulate tensors for use on a GPU
+    """
+
+    if backend != "cuda":
+        raise NotImplementedError(f"Backend '{backend}' not yet supported.")
+
+    # for now assume same type for form and mesh
+    # this is typically the default
+    geom_type = scalar_type = _convert_dtype_to_str(form.dtype)
+
+    res = []
+    sources = get_tabulate_tensor_sources(form)
+    for id, body in sources:
+        factory_name = "integral_" + id
+        name = "tabulate_tensor_" + factory_name
+        header = cuda_tabulate_tensor_header.format(
+                scalar_type=scalar_type,
+                geom_type=geom_type,
+                factory_name=factory_name
+                )
+        wrapped_source = header + "{\n" + body + "}\n"
+        res.append((name, wrapped_source))
+
+    return res
 

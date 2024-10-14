@@ -1,6 +1,6 @@
 // Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
-// This file is part of DOLFINX (https://www.fenicsproject.org)
+// This file is part of cuDOLFINX
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -16,6 +16,8 @@
 #include <cudolfinx/fem/CUDAFormConstants.h>
 #include <cudolfinx/fem/CUDAFormIntegral.h>
 #include <cudolfinx/la/CUDAVector.h>
+#include <string>
+#include <utility>
 #include <ufcx.h>
 
 namespace dolfinx {
@@ -28,9 +30,6 @@ template <dolfinx::scalar T,
 class CUDAForm
 {
 
-using cuda_kern = std::function<void(int*, const char***, const char***,
-                     const char**, const char**)>;
-
 public:
   /// Create GPU copies of data needed for assembly
   ///
@@ -39,7 +38,9 @@ public:
   CUDAForm(
     const CUDA::Context& cuda_context,
     Form<T,U>* form,
-    ufcx_form* ufcx_form
+    ufcx_form* ufcx_form,
+    std::vector<std::string>& tabulate_tensor_names,
+    std::vector<std::string>& tabulate_tensor_sources
   )
   : _coefficients(cuda_context, form, _dofmap_store)
   , _constants(cuda_context, form)
@@ -49,14 +50,17 @@ public:
   {
     _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);
     const int* integral_offsets = ufcx_form->form_integral_offsets;
+    if (integral_offsets[3] != tabulate_tensor_names.size()) {
+      throw std::runtime_error("UFCx form has " + std::to_string(integral_offsets[3])
+		      + " integrals, but only " + std::to_string(tabulate_tensor_names.size())
+		      + " tabulate tensor sources provided to CUDAForm!"
+		      );
+    }
     for (int i = 0; i < 3; i++) {
       for (int j = integral_offsets[i]; j < integral_offsets[i+1]; j++) {
-        int id = ufcx_form->form_integral_ids[integral_offsets[i] + j];
-        ufcx_integral* integral = ufcx_form->form_integrals[integral_offsets[i] + j];
-        cuda_kern k = reinterpret_cast<void (*)(
-        int*, const char*** , const char***, const char**,
-        const char**)>(integral->tabulate_tensor_cuda_nvrtc);
-        _cuda_integrals[i].insert({id, k});
+	int offset = integral_offsets[i] + j;
+        int id = ufcx_form->form_integral_ids[offset];
+        _cuda_integrals[i].insert({id, {tabulate_tensor_names[offset], tabulate_tensor_sources[offset]}});
       }
     } 
   }
@@ -127,7 +131,7 @@ private:
   // Compiled CUDA kernels
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>> _integrals;
   // CUDA tabulate tensors 
-  std::array<std::map<int, cuda_kern>, 4> _cuda_integrals;
+  std::array<std::map<int, std::pair<std::string, std::string>>, 4> _cuda_integrals;
   bool _compiled;
   Form<T,U>* _form;
   ufcx_form* _ufcx_form;

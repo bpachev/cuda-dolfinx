@@ -1,3 +1,9 @@
+# Copyright (C) 2024 Benjamin Pachev
+#
+# This file is part of cuDOLFINX
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 import petsc4py
 from petsc4py import PETSc
 from mpi4py import MPI
@@ -89,6 +95,7 @@ def compare_mats(matcsr, matpetsc):
   """
 
   indptr, indices, data = matpetsc.getValuesCSR()
+  bad = np.where(~np.isclose(matcsr.data, data))[0]
   assert np.allclose(matcsr.data, data)
 
 def compare_vecs(vecfenics, vecpetsc):
@@ -113,6 +120,7 @@ def test_cuda_assembly():
     f = fe.form(form)
     Mat1 = fe.assemble_matrix(f, bcs=ufl_forms['bcs'])
     Mat2 = asm.assemble_matrix(cufem.form(form), bcs=ufl_forms['bcs'])
+    Mat2.assemble()
     # now we need to compare the two
     compare_mats(Mat1, Mat2.mat)
 

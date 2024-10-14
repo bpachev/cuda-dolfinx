@@ -1,6 +1,6 @@
 // Copyright (C) 2024 Benjamin Pachev, James D. Trotter
 //
-// This file is part of DOLFINX (https://www.fenicsproject.org)
+// This file is part of cuDOLFINX
 //
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -97,8 +97,10 @@ std::string cuda_kernel_binary_search(void);
 // Function to convert IntegralType to string
 std::string to_string(IntegralType integral_type);
 
-cuda_kern get_cuda_wrapper(std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
-	       	IntegralType type, int i);
+std::pair<std::string, std::string> get_cuda_wrapper(
+  std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
+  IntegralType integral_type,
+  int id);
 
 template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_type_t<T>>
@@ -604,9 +606,7 @@ CUDA::Module compile_form_integral_kernel(
   CUjit_target target,
   int form_rank,
   IntegralType integral_type,
-  std::function<void(int*, const char***, const char***,
-                     const char**, const char**)>
-  cuda_tabulate,
+  std::pair<std::string, std::string> tabulate_tensor_source,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
   int32_t num_vertices_per_cell,
@@ -669,7 +669,7 @@ public:
     const CUDA::Context& cuda_context,
     CUjit_target target,
     const Form<T,U>& form,
-    std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
+    std::pair<std::string, std::string> tabulate_tensor_source,
     IntegralType integral_type, int i,
     int32_t max_threads_per_block,
     int32_t min_blocks_per_multiprocessor,
@@ -707,7 +707,7 @@ public:
                          target,
                          form.rank(),
                          _integral_type,
-			 get_cuda_wrapper(cuda_wrappers, _integral_type, i),
+			 tabulate_tensor_source,
                          max_threads_per_block,
                          min_blocks_per_multiprocessor,
                          num_vertices_per_cell,
@@ -2021,7 +2021,7 @@ cuda_form_integrals(
   const CUDA::Context& cuda_context,
   CUjit_target target,
   const Form<T,U>& form,
-  std::array<std::map<int, cuda_kern>, 4>& cuda_wrappers,
+  std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
   enum assembly_kernel_type assembly_kernel_type,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
@@ -2060,8 +2060,9 @@ cuda_form_integrals(
       std::vector<CUDAFormIntegral<T,U>>& cuda_cell_integrals =
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
+
         cuda_cell_integrals.emplace_back(
-          cuda_context, target, form, cuda_wrappers, integral_type, i,
+          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
@@ -2081,7 +2082,7 @@ cuda_form_integrals(
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
         cuda_exterior_facet_integrals.emplace_back(
-          cuda_context, target, form, cuda_wrappers, integral_type, i,
+          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
@@ -2101,7 +2102,7 @@ cuda_form_integrals(
         cuda_form_integrals[integral_type];
       for (int i : form.integral_ids(integral_type)) {
         cuda_interior_facet_integrals.emplace_back(
-          cuda_context, target, form, cuda_wrappers, integral_type, i,
+          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,

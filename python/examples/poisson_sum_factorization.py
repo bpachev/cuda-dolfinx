@@ -1,3 +1,9 @@
+# Copyright (C) 2024 Benjamin Pachev
+#
+# This file is part of cuDOLFINX
+#
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+
 import argparse as ap
 from mpi4py import MPI
 from petsc4py import PETSc

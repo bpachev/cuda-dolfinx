@@ -1,6 +1,6 @@
-# Copyright (C) 2024 Benjamin Pachev, James D. Trotter
+# Copyright (C) 2024 Benjamin Pachev
 #
-# This file is part of DOLFINX (https://www.fenicsproject.org)
+# This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
@@ -94,7 +94,6 @@ class CUDAAssembler:
       raise TypeError(
         f"Expected either a list of DirichletBC's or a CUDADirichletBC, got '{type(bcs)}'"
       )
-
     _bc0 = bc_collection._get_cpp_bcs(a.dolfinx_form.function_spaces[0])
     _bc1 = bc_collection._get_cpp_bcs(a.dolfinx_form.function_spaces[1])
     # For now always re-copy to device on assembly
