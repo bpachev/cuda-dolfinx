@@ -8,3 +8,4 @@
 
 from cudolfinx.assemble import CUDAAssembler
 from cudolfinx.form import form
+from cudolfinx.mesh import ghost_layer_mesh
