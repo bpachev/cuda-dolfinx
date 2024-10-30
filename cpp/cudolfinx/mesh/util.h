@@ -16,8 +16,8 @@ template <std::floating_point T>
 dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
                                         dolfinx::fem::CoordinateElement<T> coord_element)
 {
-  constexpr int tdim = 3;
-  constexpr int gdim = 3;
+  int tdim = mesh.topology()->dim();
+  int gdim = mesh.geometry().dim();
   std::size_t ncells = mesh.topology()->index_map(tdim)->size_local();
   std::size_t num_vertices = mesh.topology()->index_map(0)->size_local();
 
@@ -71,7 +71,9 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
 
   auto dofmap = mesh.geometry().dofmap();
   auto imap = mesh.geometry().index_map();
-  std::vector<std::int32_t> permuted_dofmap;
+  // TODO figure how to properly support both tensor product elements
+  // and regular elements
+  /*std::vector<std::int32_t> permuted_dofmap;
   std::vector<int> perm = basix::tp_dof_ordering(
       basix::element::family::P, dolfinx::mesh::cell_type_to_basix_type(coord_element.cell_shape()),
       coord_element.degree(), coord_element.variant(), basix::element::dpc_variant::unset, false);
@@ -86,10 +88,15 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
 
   auto new_mesh
       = dolfinx::mesh::create_mesh(mesh.comm(), mesh.comm(), std::span(permuted_dofmap_global),
-                                   coord_element, mesh.comm(), x, xshape, partitioner);
-
-
-
+                                   coord_element, mesh.comm(), x, xshape, partitioner);*/
+  const int * handle = dofmap.data_handle();
+  std::size_t dofmap_size = dofmap.size();
+  std::vector<std::int32_t> input_dofmap(handle, handle+dofmap_size);
+  std::vector<std::int64_t> input_dofmap_global(input_dofmap.size());
+  imap->local_to_global(input_dofmap, input_dofmap_global);
+  auto new_mesh
+      = dolfinx::mesh::create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
+		                   mesh.comm(), x, xshape, partitioner);
   return new_mesh;
 }
 
