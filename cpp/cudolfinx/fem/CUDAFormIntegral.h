@@ -683,9 +683,6 @@ public:
     bool verbose)
     : _integral_type(integral_type)
     , _id(i)
-    // UFCX doesn't provide names
-    // Need to make some changes to get the CUDA code to work. . .
-    //, _name(form.integrals().get_ufc_integral(_integral_type, i)->name)
     , _cudasrcdir(cudasrcdir)
     , _num_vertices_per_cell()
     , _num_coordinates_per_vertex()
@@ -770,15 +767,18 @@ public:
   #endif
 
     // Allocate device-side storage for mesh entities
-    //const FormIntegrals& form_integrals = form.integrals();
     _mesh_entities = form.domain(_integral_type, i);
     _num_mesh_entities = _mesh_entities.size();
-    // it's no longer possible to get ghosts from Form
-    // Only from dofmap. . .
-    // So let's ignore them for now, and figure out how we need to handle them
-    //_mesh_ghost_entities = &form.integrals().integral_domain_ghosts(_integral_type, i);
-    //_num_mesh_ghost_entities = _mesh_ghost_entities->size();
-    _num_mesh_ghost_entities = 0;
+    // determine number of ghost entities
+    if (integral_type == IntegralType::cell) {
+      int tdim = form.mesh()->topology()->dim();
+      auto cell_index_map = form.mesh()->topology()->index_map(tdim);
+      _num_mesh_ghost_entities = cell_index_map->num_ghosts();
+      _mesh_ghost_entities.resize(_num_mesh_ghost_entities);
+      std::iota(_mesh_ghost_entities.begin(), _mesh_ghost_entities.end(), _num_mesh_entities);
+    }
+    else _num_mesh_ghost_entities = 0;
+    
     if (_num_mesh_entities + _num_mesh_ghost_entities > 0) {
       size_t dmesh_entities_size =
         (_num_mesh_entities + _num_mesh_ghost_entities) * sizeof(int32_t);
@@ -806,16 +806,18 @@ public:
       }
 
       // Copy mesh ghost entities to device
-      /*cuda_err = cuMemcpyHtoD(
-        _dmesh_ghost_entities, _mesh_ghost_entities->data(),
+      if (_num_mesh_ghost_entities > 0) {
+        cuda_err = cuMemcpyHtoD(
+        _dmesh_ghost_entities, _mesh_ghost_entities.data(),
         _num_mesh_ghost_entities * sizeof(int32_t));
-      if (cuda_err != CUDA_SUCCESS) {
-        cuGetErrorString(cuda_err, &cuda_err_description);
-        cuMemFree(_dmesh_entities);
-        throw std::runtime_error(
-          "cuMemcpyHtoD() failed with " + std::string(cuda_err_description) +
-          " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
-      }*/
+        if (cuda_err != CUDA_SUCCESS) {
+          cuGetErrorString(cuda_err, &cuda_err_description);
+          cuMemFree(_dmesh_entities);
+          throw std::runtime_error(
+            "cuMemcpyHtoD() failed with " + std::string(cuda_err_description) +
+            " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
+          }
+      }
     }
 
     // Allocate host- and device-side storage for element vector or
@@ -892,7 +894,6 @@ public:
     form_integral._num_mesh_entities = 0;
     form_integral._dmesh_entities = 0;
     form_integral._num_mesh_ghost_entities = 0;
-    form_integral._mesh_ghost_entities = nullptr;
     form_integral._dmesh_ghost_entities = 0;
     form_integral._element_values = std::vector<PetscScalar>();
     form_integral._delement_values = 0;
@@ -943,7 +944,6 @@ public:
     form_integral._num_mesh_entities = 0;
     form_integral._dmesh_entities = 0;
     form_integral._num_mesh_ghost_entities = 0;
-    form_integral._mesh_ghost_entities = nullptr;
     form_integral._dmesh_ghost_entities = 0;
     form_integral._element_values = std::vector<PetscScalar>();
     form_integral._delement_values = 0;
@@ -982,7 +982,6 @@ public:
 
     /// Get a handle to the assembly kernel
     CUfunction assembly_kernel() const { return _assembly_kernel; }
-
 
   //-----------------------------------------------------------------------------
   /// Assemble a vector from the form integral
@@ -1960,7 +1959,7 @@ private:
   int32_t _num_mesh_ghost_entities;
 
   /// Host-side storage for mesh ghost entities that the integral applies to
-  const std::vector<std::int32_t>* _mesh_ghost_entities;
+  std::vector<std::int32_t> _mesh_ghost_entities;
 
   /// Device-side storage for mesh ghost entities that the integral applies to
   CUdeviceptr _dmesh_ghost_entities;
