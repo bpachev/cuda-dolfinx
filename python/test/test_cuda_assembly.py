@@ -36,14 +36,21 @@ def make_mixed_form():
   F = fe.form(A)
   mat = fe.assemble_matrix(F)
 
-def make_ufl():
-  """Create the UFL needed for making the forms
+def make_test_domain():
+  """Make a test domain
   """
 
   n = 19
   m = 27
+  return mesh.create_unit_square(MPI.COMM_WORLD, n, m, mesh.CellType.triangle)
 
-  domain = mesh.create_unit_square(MPI.COMM_WORLD, n, m, mesh.CellType.triangle)
+def make_ufl(domain=None):
+  """Create the UFL needed for making the forms
+  """
+
+  if domain is None:
+    domain = make_test_domain()
+  
   V = fe.functionspace(domain, ("P", 1))
   V_dg = fe.functionspace(domain, ("DG", 1))
   u = fe.Function(V)
@@ -51,16 +58,20 @@ def make_ufl():
   p_dg = ufl.TestFunction(V_dg)
   n = ufl.FacetNormal(domain)
   u.interpolate(lambda x: x[0]**2 + x[1])
+  u_dg = fe.Function(V_dg)
+  u_dg.interpolate(lambda x: x[0]**2 + x[1])
   kappa = fe.Function(V)
   kappa.interpolate(lambda x: np.sin(x[0])*np.cos(x[1]))
 
   cell_residual = (ufl.exp(u)*p*kappa + ufl.dot(ufl.grad(u), ufl.grad(p))) * ufl.dx
-  exterior_facet_residual = kappa*p * ufl.dot(ufl.grad(u), n) * ufl.ds
-  interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u)), n("+")) * ufl.dS
+  exterior_facet_residual = u*kappa*p * ufl.dot(ufl.grad(u), n) * ufl.ds
+  interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u_dg)), n("+")) * ufl.dS
+  #interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u)), n("+")) * ufl.dS
 
   cell_jac = ufl.derivative(cell_residual, u)
   exterior_jac = ufl.derivative(exterior_facet_residual, u)
-  interior_jac = ufl.derivative(interior_facet_residual, u)
+  #interior_jac = ufl.derivative(interior_facet_residual, u)
+  interior_jac = ufl.derivative(interior_facet_residual, u_dg)
 
   f = fe.Function(V)
   f.interpolate(lambda x: x[0] +x[1])
@@ -72,6 +83,7 @@ def make_ufl():
            "bcs": [bc],
            "vector": [cell_residual, exterior_facet_residual, interior_facet_residual],
            "matrix": [cell_jac, exterior_jac, interior_jac]}
+
 def test_assembly():
   """Test correctness of assembly
   """

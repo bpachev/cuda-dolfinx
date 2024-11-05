@@ -22,7 +22,7 @@ public:
   CUDACoefficient(std::shared_ptr<const Function<T, U>> f) {
     _f = f;
     _x = f->x();
-    _dvalues_size = _x->bs() * _x->index_map()->size_local() * sizeof(T);
+    _dvalues_size = _x->bs() * (_x->index_map()->size_local()+_x->index_map()->num_ghosts()) * sizeof(T);
     CUDA::safeMemAlloc(&_dvalues, _dvalues_size);
     copy_host_values_to_device();
   }

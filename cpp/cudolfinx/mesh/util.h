@@ -8,6 +8,7 @@
 #include <basix/finite-element.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/fem/CoordinateElement.h>
+#include <dolfinx/fem/Form.h>
 
 namespace dolfinx {
 namespace mesh {
@@ -45,7 +46,7 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   }
 
   spdlog::info("cell_to_dests= {}, ncells = {}", cell_to_dests.size(), ncells);
-
+  std::cout << "cell_to_dests " << cell_to_dests.size() << " ncells " << ncells << std::endl;
   auto partitioner
       = [cell_to_dests, ncells](MPI_Comm comm, int nparts,
                                 const std::vector<dolfinx::mesh::CellType>& cell_types,
@@ -63,10 +64,12 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
       // Ghost to other processes
       offsets.push_back(dests.size());
     }
+    std::cout << "Calling partitioner dests size " << dests.size() << std::endl;
     return dolfinx::graph::AdjacencyList<std::int32_t>(std::move(dests), std::move(offsets));
   };
 
-  std::array<std::size_t, 2> xshape = {num_vertices, gdim};
+  // The number of coordinates per vertex is ALWAYS 3, even for two-dimensional meshes
+  std::array<std::size_t, 2> xshape = {num_vertices, 3};
   std::span<const T> x(mesh.geometry().x().data(), xshape[0] * xshape[1]);
 
   auto dofmap = mesh.geometry().dofmap();
@@ -89,16 +92,27 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   auto new_mesh
       = dolfinx::mesh::create_mesh(mesh.comm(), mesh.comm(), std::span(permuted_dofmap_global),
                                    coord_element, mesh.comm(), x, xshape, partitioner);*/
-  const int * handle = dofmap.data_handle();
-  std::size_t dofmap_size = dofmap.size();
-  std::vector<std::int32_t> input_dofmap(handle, handle+dofmap_size);
+  std::vector<std::int32_t> input_dofmap;
+  for (std::size_t c = 0; c < dofmap.extent(0); ++c) {
+    auto cell_dofs = std::submdspan(dofmap, c, std::full_extent);
+    for (int i = 0; i < dofmap.extent(1); ++i)
+      input_dofmap.push_back(cell_dofs(i));
+  }
   std::vector<std::int64_t> input_dofmap_global(input_dofmap.size());
   imap->local_to_global(input_dofmap, input_dofmap_global);
   auto new_mesh
-      = dolfinx::mesh::create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
+      = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
 		                   mesh.comm(), x, xshape, partitioner);
   return new_mesh;
 }
+
+// Return indices of ghost (non-owned) exterior facets
+std::vector<std::int32_t> ghost_exterior_facet_indices(std::shared_ptr<Topology> topology);
+
+// Compute ghost entities given the integral type
+std::vector<std::int32_t> ghost_entities(
+                fem::IntegralType integral_type,
+                std::shared_ptr<Topology> topology);
 
 } // namespace mesh
 } // namespace dolfinx
