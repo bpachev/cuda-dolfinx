@@ -15,35 +15,48 @@ import ufl
 import time
 from ufl import dx, ds, grad, inner 
 
-def create_mesh(res: int = 10):
+def create_mesh(res: int = 10, dim: int = 3):
     """Create a uniform tetrahedral mesh on the unit cube.
 
     Parameters
     ----------
     res - Number of subdivisions along each dimension
+    dim - Geometric dimension of mesh
 
     Returns
     ----------
     mesh - The mesh object.
     """
 
-    return mesh.create_box(
+    if dim == 3:
+        return mesh.create_box(
             comm = MPI.COMM_WORLD,
             points = ((0,0,0), (1, 1, 1)),
             n = (res, res, res),
             cell_type = mesh.CellType.tetrahedron
         )
+    elif dim == 2:
+        return mesh.create_unit_square(MPI.COMM_WORLD, res, res)
 
-def main(res, cuda=True, degree=1):
+def main(res, cuda=True, degree=1, dim=3):
     """Assembles a stiffness matrix for the Poisson problem with the given resolution.
     """
 
-    domain = create_mesh(res)
+    domain = create_mesh(res, dim=dim)
+    comm = domain.comm
+    if cuda and comm.size > 1:
+        if comm.rank == 0:
+            print("Using ghost layer mesh for CUDA Assembly")
+        domain = cufem.ghost_layer_mesh(domain)
+
     V = fe.functionspace(domain, ("Lagrange", degree))
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
     x = ufl.SpatialCoordinate(domain)
-    f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
+    if dim == 3:
+        f = 10*ufl.exp(-((x[0]-.05)**2 + (x[1]-.05)**2 + (x[2]-.05)**2) / .02)
+    elif dim == 2:
+        f = 10*ufl.exp(-((x[0]-.05)**2 + (x[1]-.05)**2) / .02)
     g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
     a = inner(grad(u), grad(v)) * dx
     L = inner(f, v) * dx + inner(g, v) * ds
@@ -61,21 +74,23 @@ def main(res, cuda=True, degree=1):
         a = cufem.form(a)
         asm = cufem.CUDAAssembler()
         A = asm.create_matrix(a)
+        b = asm.create_vector(L)
         device_bcs = asm.pack_bcs([bc])
     else:
         a = fe.form(a, jit_options = {"cffi_extra_compile_args":["-O3", "-mcpu=neoverse-v2"]})
         A = fe_petsc.create_matrix(a)
-
+        b = fe_petsc.create_vector(L)
     start = time.time()
     if cuda:
         asm.assemble_matrix(a, A, bcs=device_bcs)
+        A.assemble()
     else:
         fe_petsc.assemble_matrix(A, a, bcs=[bc])
         A.assemble()
     elapsed = time.time()-start
 
-    timing = MPI.COMM_WORLD.gather(elapsed, root=0)
-    if MPI.COMM_WORLD.rank == 0:
+    timing = comm.gather(elapsed, root=0)
+    if comm.rank == 0:
         timing = np.asarray(timing)
         timing = np.max(timing)
         # show max over all MPI processes, as that's the rate-limiter
@@ -86,7 +101,8 @@ if __name__ == "__main__":
     parser = ap.ArgumentParser()
     parser.add_argument("--res", default=10, type=int, help="Number of subdivisions in each dimension.")
     parser.add_argument("--degree", default=1, type=int, help="Polynomial degree.")
+    parser.add_argument("--dim", default=3, type=int, help="Geometric dimension.")
     parser.add_argument("--no-cuda", default=False, action="store_true", help="Disable GPU acceleration.")
     args = parser.parse_args()
 
-    main(res=args.res, cuda = not args.no_cuda, degree=args.degree)
+    main(res=args.res, cuda = not args.no_cuda, degree=args.degree, dim=args.dim)

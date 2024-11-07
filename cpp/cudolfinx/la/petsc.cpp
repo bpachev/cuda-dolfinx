@@ -18,6 +18,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   // Get IndexMaps from sparsity patterm, and block size
   std::array maps = {sp.index_map(0), sp.index_map(1)};
   const std::array bs = {sp.block_size(0), sp.block_size(1)};
+  dolfinx::common::IndexMap col_map = sp.column_index_map();
 
   // Get global and local dimensions
   const std::int64_t M = bs[0] * maps[0]->size_global();
@@ -28,7 +29,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   // Build data to initialise sparsity pattern (modify for block size)
   std::vector<PetscInt> _row_ptr;
   // Need to ensure correct int type. . .
-  std::vector<PetscInt> _column_indices;
+  std::vector<std::int32_t> _column_indices;
   auto [_edges, _offsets]  = sp.graph();
 
   // The CUDA assembly kernels aren't currently robust to matrices with variable block size
@@ -61,22 +62,16 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
     edge_index += row_nnz;
     unrolled_edge_index += bs[0] * unrolled_row_nnz;
   }
-  /*if (bs[0] == bs[1])
-  {
-    _row_ptr.resize(maps[0]->size_local() + 1);
-    for (std::size_t i = 0; i < _row_ptr.size(); ++i)
-      _row_ptr[i] = _offsets[i];
-  }
-  else
-  {
-    // Expand for block size 1
-    _row_ptr.resize(maps[0]->size_local() * bs[0] + 1);
-    _row_ptr[0] = 0;
-    for (std::size_t i = 0; i < _row_ptr.size()-1; ++i)
-      _row_ptr[i+1] = _row_ptr[i] + bs[1] * (sp.nnz_diag(i / bs[0]) + sp.nnz_off_diag(i / bs[0]));
-  }*/
 
-  MatCreateMPIAIJWithArrays(comm, m, n, M, N, _row_ptr.data(), _column_indices.data(), nullptr, &A);
+  // convert local column indices to global ones
+  std::vector<std::int64_t> global_column_indices(_column_indices.size());
+  col_map.local_to_global(_column_indices, global_column_indices);
+  // in case PetscInt won't convert
+  std::vector<PetscInt> converted_column_indices(_column_indices.size());
+  for (std::size_t i = 0; i < global_column_indices.size(); i++) {
+    converted_column_indices[i] = global_column_indices[i];
+  }
+  MatCreateMPIAIJWithArrays(comm, m, n, M, N, _row_ptr.data(), converted_column_indices.data(), nullptr, &A);
   // Change matrix type to CUDA
   ierr = MatSetType(A, MATMPIAIJCUSPARSE);
   if (ierr != 0)
