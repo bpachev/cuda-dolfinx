@@ -288,7 +288,6 @@ std::string cuda_kernel_assemble_vector_interior_facet(
     "    for (int j = 0; j < 2*" + std::to_string(num_dofs_per_cell) + "; j++) {\n"
     "      xe[j] = 0.0;\n"
     "    }\n"
-   // "    if ((c0==1422)||(c1==455)) printf(\"Processing %d:%d on thread %d. nactive ents:%d \\n\", c0, c1, thread_idx, num_active_mesh_entities);\n "
     "\n"
     + compute_interior_facet_tensor(
        tabulate_tensor_function_name,
@@ -304,7 +303,6 @@ std::string cuda_kernel_assemble_vector_interior_facet(
     "    // that are subject to essential boundary conditions.\n"
     "    for (int j = 0; j < 2*" + std::to_string(num_dofs_per_cell) + "; j++) {\n"
     "      int32_t row = dofs[j];\n"
-    "      if ((row == 1422)||(row==3075)) printf(\"Thread: %d, values[%d]+=%f, c0=%d, c1=%d \\n\", thread_idx, row, xe[j], c0, c1);\n"
     "      atomicAdd(&values[row], xe[j]);\n"
     "    }\n"
     "  }\n" 

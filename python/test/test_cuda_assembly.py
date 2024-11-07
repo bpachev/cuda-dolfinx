@@ -65,12 +65,10 @@ def make_ufl(domain=None):
 
   cell_residual = (ufl.exp(u)*p*kappa + ufl.dot(ufl.grad(u), ufl.grad(p))) * ufl.dx
   exterior_facet_residual = u*kappa*p * ufl.dot(ufl.grad(u), n) * ufl.ds
-  interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u_dg)), n("+")) * ufl.dS
-  #interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.dot(ufl.avg(ufl.grad(u)), n("+")) * ufl.dS
+  interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.avg(u_dg**2) * ufl.dS
 
   cell_jac = ufl.derivative(cell_residual, u)
   exterior_jac = ufl.derivative(exterior_facet_residual, u)
-  #interior_jac = ufl.derivative(interior_facet_residual, u)
   interior_jac = ufl.derivative(interior_facet_residual, u_dg)
 
   f = fe.Function(V)

@@ -773,34 +773,6 @@ public:
     // TODO properly support ghost entities for subdomain integrals
     _mesh_ghost_entities = mesh::ghost_entities(_integral_type, form.mesh()->topology_mutable());
     _num_mesh_ghost_entities = _mesh_ghost_entities.size();
-    if (integral_type == IntegralType::interior_facet) {
-      int tdim = form.mesh()->topology()->dim();
-      printf("Mesh ents: %d, Ghost: %d, Owned cells %d\n", _num_mesh_entities, 
-	_num_mesh_ghost_entities, form.mesh()->topology()->index_map(tdim)->size_local());
-      int count = 0;
-      int cell = 455;
-      for (int i =0; i < _mesh_entities.size(); i+=2) {
-	 if (_mesh_entities[i] == cell) count++;
-      }
-      std::cout << "Occurences of cell "<<cell<<" in owned entities " << count << std::endl;
-      for (int i =0; i < _mesh_ghost_entities.size(); i+=2) {
-         if (_mesh_ghost_entities[i] == cell) {std::cout << "idx of ghost "<<_num_mesh_entities+i<<std::endl; count++;}
-      }
-      std::cout << "Occurences of cell "<<cell<<" in all entities " << count << std::endl;
-      auto c_to_f = form.mesh()->topology()->connectivity(tdim, tdim-1);
-      auto f_to_c = form.mesh()->topology()->connectivity(tdim-1, tdim);
-      std::string neighbors = "";
-      for (int i =0; i < c_to_f->num_links(cell); i++) {
-	 int f = c_to_f->links(cell)[i];
-	 if (f_to_c->num_links(cell) != 2)
-		 std::cout << "Facet " << f << " is exterior for cell " << cell << std::endl;
-	 else {
-	   auto cells = f_to_c->links(f);
-	   neighbors += std::to_string(cells[0]) + ":" + std::to_string(cells[1]) + " ";
-	 }
-      }
-      std::cout << neighbors << std::endl; 
-    }
     
     if (_num_mesh_entities + _num_mesh_ghost_entities > 0) {
       size_t dmesh_entities_size =

@@ -46,7 +46,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   }
 
   spdlog::info("cell_to_dests= {}, ncells = {}", cell_to_dests.size(), ncells);
-  std::cout << "cell_to_dests " << cell_to_dests.size() << " ncells " << ncells << std::endl;
   auto partitioner
       = [cell_to_dests, ncells](MPI_Comm comm, int nparts,
                                 const std::vector<dolfinx::mesh::CellType>& cell_types,
@@ -64,7 +63,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
       // Ghost to other processes
       offsets.push_back(dests.size());
     }
-    std::cout << "Calling partitioner dests size " << dests.size() << std::endl;
     return dolfinx::graph::AdjacencyList<std::int32_t>(std::move(dests), std::move(offsets));
   };
 
