@@ -57,8 +57,7 @@ public:
 		      );
     }
     for (int i = 0; i < 3; i++) {
-      for (int j = integral_offsets[i]; j < integral_offsets[i+1]; j++) {
-	int offset = integral_offsets[i] + j;
+      for (int offset = integral_offsets[i]; offset < integral_offsets[i+1]; offset++) {
         int id = ufcx_form->form_integral_ids[offset];
         _cuda_integrals[i].insert({id, {tabulate_tensor_names[offset], tabulate_tensor_sources[offset]}});
       }

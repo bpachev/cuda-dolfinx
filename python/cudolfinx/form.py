@@ -39,6 +39,7 @@ class CUDAForm:
         for name, source in self._wrapped_tabulate_tensors:
             _tabulate_tensor_names.append(name)
             _tabulate_tensor_sources.append(source)
+
         self._cuda_form = form_cls(
                 self._ctx,
                 cpp_form,

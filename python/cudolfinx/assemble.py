@@ -179,7 +179,7 @@ class CUDAAssembler:
     b: CUDAVector,
     a: list[CUDAForm],
     bcs: typing.List[typing.Union[list[DirichletBC], CUDADirichletBC]],
-    x0: typing.Optional[list[Vector]] = None,
+    x0: typing.Optional[list[PETSc.Vec]] = None,
     scale: float = 1.0,
     coeffs: typing.Optional[list[list[Function]]] = None
   ):
@@ -233,7 +233,7 @@ class CUDAAssembler:
     b: CUDAVector,
     bcs: typing.Union[list[DirichletBC], CUDADirichletBC],
     V: FunctionSpace,
-    x0: typing.Optional[Function] = None,
+    x0: typing.Optional[PETSc.Vec] = None,
     scale: float = 1.0,
   ):
     """Set boundary conditions on device.

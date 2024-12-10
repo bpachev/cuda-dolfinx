@@ -72,6 +72,7 @@ def main(res, cuda=True, degree=1, dim=3):
 
     if cuda:
         a = cufem.form(a)
+        L = cufem.form(L)
         asm = cufem.CUDAAssembler()
         A = asm.create_matrix(a)
         b = asm.create_vector(L)
