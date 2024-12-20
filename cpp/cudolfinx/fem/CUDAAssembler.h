@@ -377,7 +377,7 @@ public:
   void set_bc(
     const CUDA::Context& cuda_context,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc,
-    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
+    std::shared_ptr<dolfinx::la::CUDAVector> x0,
     double scale,
     dolfinx::la::CUDAVector& b) const
   {
@@ -422,7 +422,7 @@ public:
     CUdeviceptr dboundary_dofs = bc.dof_indices();
     CUdeviceptr dboundary_value_dofs = bc.dof_value_indices();
     CUdeviceptr dboundary_values = bc.dof_values();
-    CUdeviceptr dx0 = (x0) ? x0->device_values() : NULL;
+    CUdeviceptr dx0 = (x0) ? x0->values() : NULL;
     std::int32_t num_values =
         b.ghosted() ? b.num_local_ghosted_values() : b.num_local_values();
     CUdeviceptr dvalues = b.values_write();
@@ -457,6 +457,7 @@ public:
     }
 
     b.restore_values_write();
+    if (x0) x0->restore_values();
   }
   //-----------------------------------------------------------------------------
   /// Modify a right-hand side vector `b` to account for essential
@@ -501,7 +502,7 @@ public:
     const dolfinx::fem::CUDAFormConstants<T>& constants,
     const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc1,
-    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
+    std::shared_ptr<dolfinx::la::CUDAVector> x0,
     double scale,
     dolfinx::la::CUDAVector& b,
     bool verbose) const

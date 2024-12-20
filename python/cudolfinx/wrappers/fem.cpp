@@ -136,7 +136,7 @@ void declare_cuda_objects(nb::module_& m)
       .def(
           "__init__",
           [](dolfinx::la::CUDAMatrix* cumat, const dolfinx::CUDA::Context& cuda_context, Mat A) {
-            new (cumat) dolfinx::la::CUDAMatrix(cuda_context, A, false, false);
+            new (cumat) dolfinx::la::CUDAMatrix(cuda_context, A, false, true);
           }, nb::arg("context"), nb::arg("A"))
       .def("debug_dump", &dolfinx::la::CUDAMatrix::debug_dump)
       .def("to_host",
@@ -264,7 +264,7 @@ void declare_cuda_funcs(nb::module_& m)
            dolfinx::mesh::CUDAMesh<U>& cuda_mesh,
            dolfinx::la::CUDAVector& cuda_b,
            std::vector<std::shared_ptr<const dolfinx::fem::CUDADirichletBC<T,U>>>& bcs,
-           std::vector<std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>>>& cuda_x0,
+           std::vector<std::shared_ptr<dolfinx::la::CUDAVector>>& cuda_x0,
            float scale)
         {
           bool missing_x0 = (cuda_x0.size() == 0);
@@ -274,7 +274,7 @@ void declare_cuda_funcs(nb::module_& m)
 
           for (size_t i = 0; i < cuda_form.size(); i++) {
             auto form = cuda_form[i];
-            std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0 = (missing_x0) ? nullptr : cuda_x0[i]; 
+            std::shared_ptr<dolfinx::la::CUDAVector> x0 = (missing_x0) ? nullptr : cuda_x0[i]; 
             assembler.lift_bc(
               cuda_context, cuda_mesh, *form->dofmap(0), *form->dofmap(1),
               form->integrals(), form->constants(), form->coefficients(),
@@ -292,7 +292,7 @@ void declare_cuda_funcs(nb::module_& m)
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
            dolfinx::la::CUDAVector& cuda_b,
            std::shared_ptr<const dolfinx::fem::CUDADirichletBC<T,U>> bc0,
-           std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> cuda_x0,
+           std::shared_ptr<dolfinx::la::CUDAVector> cuda_x0,
            float scale)
         {
           assembler.set_bc(cuda_context, *bc0, cuda_x0, scale, cuda_b);
@@ -308,7 +308,7 @@ void declare_cuda_funcs(nb::module_& m)
            std::shared_ptr<const dolfinx::fem::CUDADirichletBC<T,U>> bc0,
            float scale)
         {
-          std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0 = nullptr;
+          std::shared_ptr<dolfinx::la::CUDAVector> x0 = nullptr;
           assembler.set_bc(cuda_context, *bc0, x0, scale, cuda_b);
         },
         nb::arg("context"), nb::arg("assembler"), nb::arg("b"),

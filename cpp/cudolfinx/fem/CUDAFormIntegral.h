@@ -361,7 +361,7 @@ void lift_bc_cell(
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
   double scale,
-  std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
+  std::shared_ptr<dolfinx::la::CUDAVector> x0,
   dolfinx::la::CUDAVector& b,
   bool verbose)
 {
@@ -391,7 +391,7 @@ void lift_bc_cell(
   CUdeviceptr dcoefficient_values = coefficients.packed_coefficient_values();
 
   std::int32_t num_columns = dofmap1.num_dofs();
-  CUdeviceptr dx0 = (x0) ? x0->device_values() : NULL;
+  CUdeviceptr dx0 = (x0) ? x0->values() : NULL;
   CUdeviceptr db = b.values_write();
 
   // Use the CUDA occupancy calculator to determine a grid and block
@@ -462,6 +462,7 @@ void lift_bc_cell(
   }
 
   b.restore_values_write();
+  if (x0) x0->restore_values();
 }
 
 //-----------------------------------------------------------------------------
@@ -477,7 +478,7 @@ void lift_bc_facet(
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
   double scale,
-  std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
+  std::shared_ptr<dolfinx::la::CUDAVector> x0,
   dolfinx::la::CUDAVector& b,
   bool verbose,
   std::int32_t num_mesh_entities,
@@ -509,7 +510,7 @@ void lift_bc_facet(
   CUdeviceptr dcoefficient_values = coefficients.packed_coefficient_values();
 
   std::int32_t num_columns = dofmap1.num_dofs();
-  CUdeviceptr dx0 = (x0) ? x0->device_values() : NULL;
+  CUdeviceptr dx0 = (x0) ? x0->values() : NULL;
   CUdeviceptr db = b.values_write();
 
   // Use the CUDA occupancy calculator to determine a grid and block
@@ -600,6 +601,7 @@ void lift_bc_facet(
   }
 
   b.restore_values_write();
+  if (x0) x0->restore_values();
 }
 
 CUDA::Module compile_form_integral_kernel(
@@ -1023,7 +1025,7 @@ public:
     const dolfinx::fem::CUDAFormConstants<T>& constants,
     const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
     double scale,
-    std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>> x0,
+    std::shared_ptr<dolfinx::la::CUDAVector> x0,
     dolfinx::la::CUDAVector& b,
     bool verbose) const
   {
