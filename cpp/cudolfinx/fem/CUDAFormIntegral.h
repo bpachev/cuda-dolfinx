@@ -143,7 +143,7 @@ void assemble_vector_cell(
  // CUdeviceptr dbc = bc.dof_markers();
 
   // Global vector
-  std::int32_t num_values = cuda_vector.num_values();
+  std::int32_t num_values = cuda_vector.num_local_values();
   CUdeviceptr dvalues = cuda_vector.values_write();
 
   // Use the CUDA occupancy calculator to determine a grid and block
@@ -256,7 +256,7 @@ void assemble_vector_facet(
  // CUdeviceptr dbc = bc.dof_markers();
 
   // Global vector
-  std::int32_t num_values = cuda_vector.num_values();
+  std::int32_t num_values = cuda_vector.num_local_values();
   CUdeviceptr dvalues = cuda_vector.values_write();
 
   (void) cuda_context;
@@ -392,6 +392,7 @@ void lift_bc_cell(
 
   std::int32_t num_columns = dofmap1.num_dofs();
   CUdeviceptr dx0 = (x0) ? x0->values() : NULL;
+  std::int32_t num_rows = b.num_local_values();
   CUdeviceptr db = b.values_write();
 
   // Use the CUDA occupancy calculator to determine a grid and block
@@ -438,6 +439,7 @@ void lift_bc_cell(
     &dbc_values1,
     &scale,
     &num_columns,
+    &num_rows,
     &dx0,
     &db};
   cuda_err = launch_cuda_kernel(
@@ -511,6 +513,7 @@ void lift_bc_facet(
 
   std::int32_t num_columns = dofmap1.num_dofs();
   CUdeviceptr dx0 = (x0) ? x0->values() : NULL;
+  std::int32_t num_rows = b.num_local_values();
   CUdeviceptr db = b.values_write();
 
   // Use the CUDA occupancy calculator to determine a grid and block
@@ -577,6 +580,7 @@ void lift_bc_facet(
     &dbc_values1,
     &scale,
     &num_columns,
+    &num_rows,
     &dx0,
     &db});
   cuda_err = launch_cuda_kernel(

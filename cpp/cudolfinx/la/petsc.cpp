@@ -9,6 +9,7 @@
 #include <dolfinx/common/MPI.h>
 #include <dolfinx/la/SparsityPattern.h>
 #include <dolfinx/la/utils.h>
+#include <iostream>
 
 Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
 {
@@ -63,15 +64,21 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
     unrolled_edge_index += bs[0] * unrolled_row_nnz;
   }
 
-  // convert local column indices to global ones
-  std::vector<std::int64_t> global_column_indices(_column_indices.size());
-  col_map.local_to_global(_column_indices, global_column_indices);
-  // in case PetscInt won't convert
-  std::vector<PetscInt> converted_column_indices(_column_indices.size());
-  for (std::size_t i = 0; i < global_column_indices.size(); i++) {
-    converted_column_indices[i] = global_column_indices[i];
+  // convert local column indices to global ones (unrolling blocked indices)
+  std::vector<PetscInt> global_column_indices(_column_indices.size());
+  auto col_local_size = bs[1]*col_map.size_local();
+  auto col_ghosts = col_map.ghosts();
+  auto col_local_range = bs[1]*col_map.local_range()[0];
+  for (std::size_t i = 0; i < _column_indices.size(); i++) {
+    
+    if (_column_indices[i] < col_local_size)
+      global_column_indices[i] = _column_indices[i] + col_local_range;
+    else {
+      int diff = _column_indices[i] - col_local_size;     
+      global_column_indices[i] = bs[1] * col_ghosts[diff / bs[1]] + diff % bs[1];
+    }	    
   }
-  MatCreateMPIAIJWithArrays(comm, m, n, M, N, _row_ptr.data(), converted_column_indices.data(), nullptr, &A);
+  MatCreateMPIAIJWithArrays(comm, m, n, M, N, _row_ptr.data(), global_column_indices.data(), nullptr, &A);
   // Change matrix type to CUDA
   ierr = MatSetType(A, MATMPIAIJCUSPARSE);
   if (ierr != 0)

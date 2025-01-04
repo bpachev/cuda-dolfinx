@@ -79,19 +79,11 @@ public:
     // conditions
     _num_owned_boundary_dofs = 0;
     _num_boundary_dofs = 0;
-    for (auto const& bc : bcs) {
-      if (V.contains(*bc->function_space())) {
-        auto const [dofs, range] = bc->dof_indices();
-        _num_owned_boundary_dofs += range;
-        _num_boundary_dofs += dofs.size();
-      }
-    }
 
     // Build dof markers, indices and values
     signed char* dof_markers = nullptr;
-    std::vector<std::int32_t> dof_indices(_num_boundary_dofs);
-    _num_owned_boundary_dofs = 0;
-    _num_boundary_dofs = 0;
+    std::vector<std::int32_t> dof_indices;
+    std::vector<std::int32_t> ghost_dof_indices;
     for (auto const& bc : bcs) {
       if (V.contains(*bc->function_space())) {
         if (!dof_markers) {
@@ -105,13 +97,15 @@ public:
         bc->mark_dofs(std::span(dof_markers, _num_dofs));
         auto const [dofs, range] = bc->dof_indices();
         for (std::int32_t i = 0; i < dofs.size(); i++) {
-          dof_indices[_num_boundary_dofs + i] = dofs[i];
+	  if (i < range) dof_indices.push_back(dofs[i]);
+	  else ghost_dof_indices.push_back(dofs[i]);
         }
-        _num_owned_boundary_dofs += range;
-        _num_boundary_dofs += dofs.size();
         bc->set(std::span<T>(_dof_values), {}, 1);
       }
     }
+    _num_owned_boundary_dofs = dof_indices.size();
+    _num_boundary_dofs = _num_owned_boundary_dofs + ghost_dof_indices.size();
+    dof_indices.insert(dof_indices.end(), ghost_dof_indices.begin(), ghost_dof_indices.end());
     // Allocate device-side storage for dof markers
     if (dof_markers && _num_dofs > 0) {
       size_t ddof_markers_size = _num_dofs * sizeof(char);
@@ -141,7 +135,7 @@ public:
 
     // Allocate device-side storage for dof indices
     if (_num_boundary_dofs > 0) {
-      size_t ddof_indices_size = _num_boundary_dofs * sizeof(std::int32_t);
+      size_t ddof_indices_size = dof_indices.size() * sizeof(std::int32_t);
       cuda_err = cuMemAlloc(&_ddof_indices, ddof_indices_size);
       if (cuda_err != CUDA_SUCCESS) {
         if (_ddof_markers)
@@ -272,12 +266,12 @@ public:
   /// Get a handle to the device-side dof markers
   CUdeviceptr dof_markers() const { return _ddof_markers; }
 
-  /// Get the number of degrees of freedom owned by the current
-  /// process that are subject to boundary conditions
+  /// Get the number of owned degrees of freedom subject to boundary
+  /// conditions 
   int32_t num_owned_boundary_dofs() const { return _num_owned_boundary_dofs; }
-
+  
   /// Get the number of degrees of freedom subject to boundary
-  /// conditions
+  /// conditions 
   int32_t num_boundary_dofs() const { return _num_boundary_dofs; }
 
   /// Get a handle to the device-side dof indices
