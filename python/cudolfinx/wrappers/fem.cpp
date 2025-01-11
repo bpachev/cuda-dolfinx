@@ -122,6 +122,9 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
 
   m.def("ghost_layer_mesh", dolfinx::mesh::ghost_layer_mesh<T>,
 	"Create mesh with extra layer of ghost cells.");
+
+  m.def("ghost_layer_meshtags", dolfinx::mesh::ghost_layer_meshtags<T>,
+        "Transfer meshtags to ghost layer mesh.");	  
 }
 
 // Declare the nontemplated CUDA wrappers

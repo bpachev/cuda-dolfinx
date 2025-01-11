@@ -7,12 +7,17 @@
 
 #include <basix/finite-element.h>
 #include <dolfinx/mesh/Mesh.h>
+#include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx/fem/CoordinateElement.h>
 #include <dolfinx/fem/Form.h>
+#include <algorithm>
 
 namespace dolfinx {
 namespace mesh {
 
+/// Given an input mesh, create a version of the mesh with 
+/// an additional layer of ghost cells to faciliate assembly
+/// across multiple GPUs.
 template <std::floating_point T>
 dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
                                         dolfinx::fem::CoordinateElement<T> coord_element)
@@ -104,13 +109,81 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   return new_mesh;
 }
 
-// Return indices of ghost (non-owned) exterior facets
+/// Return indices of ghost (non-owned) exterior facets
 std::vector<std::int32_t> ghost_exterior_facet_indices(std::shared_ptr<Topology> topology);
 
-// Compute ghost entities given the integral type
+/// Compute ghost entities given the integral type
 std::vector<std::int32_t> ghost_entities(
                 fem::IntegralType integral_type,
                 std::shared_ptr<Topology> topology);
+
+/// Given a MeshTags object for the original mesh without an extra ghost layer,
+/// create a corresponding MeshTags object that will function correctly with 
+/// the ghost layer mesh. This relies on original_cell_index in the Topology class,
+/// so the MeshTags object MUST correspond to the mesh passed to ghost_layer_mesh!
+template <std::floating_point T>
+dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& meshtags,
+		dolfinx::mesh::Mesh<T>& ghosted_mesh)
+{
+  std::shared_ptr<const Topology> topology = meshtags.topology();
+  int tdim = topology->dim();
+  // Get dimension of tagged entities
+  int ent_dim = meshtags.dim();
+  // Get original cell indices
+  // TODO when mixed topology is implemented in DOLFINx, this will need to be updated
+  std::vector<std::int64_t> original_cell_index = ghosted_mesh.topology()->original_cell_index[0];
+  int num_local_cells = topology->index_map(tdim)->size_local();
+  if (num_local_cells != ghosted_mesh.topology()->index_map(tdim)->size_local())
+    throw std::runtime_error("Size mismatch in number of local cells between original and ghosted meshes!");
+  
+  auto cell_local_range = topology->index_map(tdim)->local_range();
+  std::vector<std::int32_t> cell_map(num_local_cells);
+  
+  for (int i = 0; i < num_local_cells; i++) {
+    int orig_cell = original_cell_index[i] - cell_local_range[0];
+    if (orig_cell < 0 || orig_cell >= cell_map.size())
+      throw std::runtime_error("Index out of bounds when constructing cell map!");
+    cell_map[orig_cell] = i;
+  }
+
+  auto tagged_entities = meshtags.indices();
+  auto tags = meshtags.values();
+  std::vector<std::int32_t> input_entities;
+  std::vector<T> input_values;
+  // If the MeshTags object is for cells, it's easy
+  if (ent_dim == tdim) {
+    input_entities.reserve(tagged_entities.size());
+    input_values.reserve(tags.size());
+    for (auto& entity : tagged_entities) {
+      input_entities.push_back(cell_map[entity]);
+      input_values.push_back(cell_map[entity]);
+    }
+  } 
+  else {
+    // we have to do some monkey business here
+    throw std::runtime_error("Other tdims not yet supported!");
+  }
+
+  // Ensure entities/values are sorted before creating new MeshTags object
+  std::vector<std::pair<std::int32_t, T>> combined;
+  for (int i = 0; i < input_entities.size(); i++)
+    combined.emplace_back(input_entities[i], input_values[i]);
+
+  std::sort(combined.begin(), combined.end(), 
+             [](const std::pair<std::int32_t, T>& a, const std::pair<std::int32_t, T>& b) {
+               return a.first < b.first;
+	     });
+
+  input_entities.clear();
+  input_values.clear();
+  for (const auto& pair : combined) {
+    input_entities.push_back(pair.first);
+    input_values.push_back(pair.second);
+  }
+
+  return dolfinx::mesh::MeshTags<T>(ghosted_mesh.topology(), ent_dim,
+             std::move(input_entities), std::move(input_values));
+}
 
 } // namespace mesh
 } // namespace dolfinx
