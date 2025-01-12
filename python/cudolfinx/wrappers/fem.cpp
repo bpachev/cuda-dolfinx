@@ -57,6 +57,13 @@ struct geom_type<T, std::void_t<typename T::value_type>>
   typedef typename T::value_type value_type;
 };
 
+// declare meshtags function
+template <typename T>
+void declare_meshtags(nb::module_& m)
+{
+  m.def("ghost_layer_meshtags", dolfinx::mesh::ghost_layer_meshtags<T>,
+        "Transfer meshtags to ghost layer mesh.");	  
+}
 
 // declare templated cuda-related objects
 template <typename T>
@@ -123,8 +130,6 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
   m.def("ghost_layer_mesh", dolfinx::mesh::ghost_layer_mesh<T>,
 	"Create mesh with extra layer of ghost cells.");
 
-  m.def("ghost_layer_meshtags", dolfinx::mesh::ghost_layer_meshtags<T>,
-        "Transfer meshtags to ghost layer mesh.");	  
 }
 
 // Declare the nontemplated CUDA wrappers
@@ -333,7 +338,13 @@ void fem(nb::module_& m)
   declare_cuda_templated_objects<float>(m, "float32");
   declare_cuda_templated_objects<double>(m, "float64");
   declare_cuda_objects(m);
+  // TODO dynamically determine PETSc float type to assess which of these to invoke
+  // defaults to assuming PETSc is built with double precision
   //declare_cuda_funcs<float, float>(m);
   declare_cuda_funcs<double, double>(m);
+  declare_meshtags<std::int8_t>(m);
+  declare_meshtags<std::int32_t>(m);
+  declare_meshtags<std::int64_t>(m);
+  declare_meshtags<double>(m);
 }
 } // namespace cudolfinx_wrappers

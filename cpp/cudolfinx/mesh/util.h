@@ -121,9 +121,9 @@ std::vector<std::int32_t> ghost_entities(
 /// create a corresponding MeshTags object that will function correctly with 
 /// the ghost layer mesh. This relies on original_cell_index in the Topology class,
 /// so the MeshTags object MUST correspond to the mesh passed to ghost_layer_mesh!
-template <std::floating_point T>
+template <typename T>
 dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& meshtags,
-		dolfinx::mesh::Mesh<T>& ghosted_mesh)
+		std::shared_ptr<Topology> ghosted_mesh_topology)
 {
   std::shared_ptr<const Topology> topology = meshtags.topology();
   int tdim = topology->dim();
@@ -131,9 +131,9 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
   int ent_dim = meshtags.dim();
   // Get original cell indices
   // TODO when mixed topology is implemented in DOLFINx, this will need to be updated
-  std::vector<std::int64_t> original_cell_index = ghosted_mesh.topology()->original_cell_index[0];
+  std::vector<std::int64_t> original_cell_index = ghosted_mesh_topology->original_cell_index[0];
   int num_local_cells = topology->index_map(tdim)->size_local();
-  if (num_local_cells != ghosted_mesh.topology()->index_map(tdim)->size_local())
+  if (num_local_cells != ghosted_mesh_topology->index_map(tdim)->size_local())
     throw std::runtime_error("Size mismatch in number of local cells between original and ghosted meshes!");
   
   auto cell_local_range = topology->index_map(tdim)->local_range();
@@ -154,14 +154,39 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
   if (ent_dim == tdim) {
     input_entities.reserve(tagged_entities.size());
     input_values.reserve(tags.size());
-    for (auto& entity : tagged_entities) {
-      input_entities.push_back(cell_map[entity]);
-      input_values.push_back(cell_map[entity]);
+    for (int i = 0; i < tagged_entities.size(); i++) {
+      input_entities.push_back(cell_map[tagged_entities[i]]);
+      input_values.push_back(tags[i]);
     }
   } 
   else {
     // we have to do some monkey business here
-    throw std::runtime_error("Other tdims not yet supported!");
+    // first off, we loop over cells and match vertices
+    auto cell_verts = topology->connectivity(tdim, 0);
+    auto ghosted_cell_verts = ghosted_mesh_topology->connectivity(tdim, 0);
+
+    std::map<std::int32_t, std::int32_t> vert_map;
+
+    for (int cell = 0; cell < num_local_cells; cell++) {
+      auto verts1 = cell_verts->links(cell);
+      auto verts2 = ghosted_cell_verts->links(cell_map[cell]);
+      // This is the crucial bit
+      // We assume that the ordering of cell vertices is preserved
+      // Without this we cannot match vertices unless we use the coordinates
+      for (int j = 0; j < verts1.size(); j++)
+        vert_map[verts1[j]] = verts2[j];
+    }
+
+    if (ent_dim == 0) {
+      // We have the map constructed
+      for (int i = 0; i < tagged_entities.size(); i++) {
+        input_entities.push_back(vert_map[tagged_entities[i]]);
+	input_values.push_back(tags[i]);
+      }
+    }
+    else {
+      throw std::runtime_error("Edges/facets not yet supported!");
+    }
   }
 
   // Ensure entities/values are sorted before creating new MeshTags object
@@ -181,7 +206,7 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
     input_values.push_back(pair.second);
   }
 
-  return dolfinx::mesh::MeshTags<T>(ghosted_mesh.topology(), ent_dim,
+  return dolfinx::mesh::MeshTags<T>(ghosted_mesh_topology, ent_dim,
              std::move(input_entities), std::move(input_values));
 }
 
