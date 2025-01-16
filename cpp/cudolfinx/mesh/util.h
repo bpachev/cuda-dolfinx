@@ -173,8 +173,9 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
       // This is the crucial bit
       // We assume that the ordering of cell vertices is preserved
       // Without this we cannot match vertices unless we use the coordinates
-      for (int j = 0; j < verts1.size(); j++)
+      for (int j = 0; j < verts1.size(); j++) {
         vert_map[verts1[j]] = verts2[j];
+      }
     }
 
     if (ent_dim == 0) {
@@ -185,9 +186,45 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
       }
     }
     else {
-      throw std::runtime_error("Edges/facets not yet supported!");
+      auto ent_verts = topology->connectivity(ent_dim, 0);
+      std::vector<std::int32_t> mapped_entities;
+      for (const auto& ent : tagged_entities) {
+	for (const auto& vert : ent_verts->links(ent)) {
+	  if (vert_map.find(vert) == vert_map.end())
+	    throw std::runtime_error("Unmapped vertex in tagged entitity!");
+          mapped_entities.push_back(vert_map[vert]);
+	}
+      }
+
+      ghosted_mesh_topology->create_connectivity(ent_dim, 0);
+      std::vector<std::int32_t> entity_indices = dolfinx::mesh::entities_to_index(
+		      *ghosted_mesh_topology, ent_dim, mapped_entities);
+
+      for (int i = 0; i < entity_indices.size(); i++) {
+        input_entities.push_back(entity_indices[i]);
+        input_values.push_back(tags[i]);
+      }
     }
   }
+
+  int rank = dolfinx::MPI::rank(ghosted_mesh_topology->comm());
+  std::map<int, std::vector<std::int32_t>> dest_entities;
+  auto entity_ranks = ghosted_mesh_topology->index_map(ent_dim)->index_to_dest_ranks();
+  for (int i = 0; i < input_entities.size(); i++) {
+    std::int32_t ent = input_entities[i];
+    if (ent >= entity_ranks.num_nodes()) continue;
+    for (auto& r : entity_ranks.links(ent)) {
+      if (dest_entities.find(r) == dest_entities.end()) {
+        dest_entities[r] = {i};
+      }
+      else dest_entites[r].push_back(i);
+    }
+  }
+
+  // get source ranks
+  //std::vector<int> src = dolfinx::MPI::compute_graph_edges_nbx(comm, dest);
+  //MPI_Comm neigh_comm;
+
 
   // Ensure entities/values are sorted before creating new MeshTags object
   std::vector<std::pair<std::int32_t, T>> combined;
