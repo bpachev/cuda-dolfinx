@@ -129,23 +129,24 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
   int tdim = topology->dim();
   // Get dimension of tagged entities
   int ent_dim = meshtags.dim();
+  auto cell_index_map = topology->index_map(tdim);
   // Get original cell indices
   // TODO when mixed topology is implemented in DOLFINx, this will need to be updated
   std::vector<std::int64_t> original_cell_index = ghosted_mesh_topology->original_cell_index[0];
-  int num_local_cells = topology->index_map(tdim)->size_local();
-  if (num_local_cells != ghosted_mesh_topology->index_map(tdim)->size_local())
-    throw std::runtime_error("Size mismatch in number of local cells between original and ghosted meshes!");
-  
-  auto cell_local_range = topology->index_map(tdim)->local_range();
-  std::vector<std::int32_t> cell_map(num_local_cells);
-  
-  for (int i = 0; i < num_local_cells; i++) {
-    int orig_cell = original_cell_index[i] - cell_local_range[0];
-    if (orig_cell < 0 || orig_cell >= cell_map.size())
+  std::vector<std::int32_t> original_local_index(original_cell_index.size());
+  cell_index_map->global_to_local(original_cell_index, original_local_index);
+
+  std::vector<std::int32_t> cell_map(cell_index_map->size_local() + cell_index_map->num_ghosts(), -1);
+  for (int i = 0; i < original_local_index.size(); i++) {
+    int orig_cell = original_local_index[i];
+    if (orig_cell < 0) continue;
+    if (orig_cell >= cell_map.size())
       throw std::runtime_error("Index out of bounds when constructing cell map!");
     cell_map[orig_cell] = i;
   }
 
+  MPI_Comm comm = ghosted_mesh_topology->comm();
+  int rank = dolfinx::MPI::rank(comm);
   auto tagged_entities = meshtags.indices();
   auto tags = meshtags.values();
   std::vector<std::int32_t> input_entities;
@@ -164,11 +165,15 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
     // first off, we loop over cells and match vertices
     auto cell_verts = topology->connectivity(tdim, 0);
     auto ghosted_cell_verts = ghosted_mesh_topology->connectivity(tdim, 0);
-
     std::map<std::int32_t, std::int32_t> vert_map;
 
-    for (int cell = 0; cell < num_local_cells; cell++) {
+    for (int cell = 0; cell < cell_map.size(); cell++) {
       auto verts1 = cell_verts->links(cell);
+      if (cell_map[cell] < 0)
+        throw std::runtime_error(
+			"No match for cell " + std::to_string(cell)
+			+ " on rank " + std::to_string(rank));
+		    
       auto verts2 = ghosted_cell_verts->links(cell_map[cell]);
       // This is the crucial bit
       // We assume that the ordering of cell vertices is preserved
@@ -191,7 +196,10 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
       for (const auto& ent : tagged_entities) {
 	for (const auto& vert : ent_verts->links(ent)) {
 	  if (vert_map.find(vert) == vert_map.end())
-	    throw std::runtime_error("Unmapped vertex in tagged entitity!");
+	    throw std::runtime_error(
+			    "Unmapped vertex "+std::to_string(vert)+
+			    " in tagged entitity "+std::to_string(ent)+
+			    " on rank " + std::to_string(rank));
           mapped_entities.push_back(vert_map[vert]);
 	}
       }
@@ -207,9 +215,9 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
     }
   }
 
-  int rank = dolfinx::MPI::rank(ghosted_mesh_topology->comm());
   std::map<int, std::vector<std::int32_t>> dest_entities;
-  auto entity_ranks = ghosted_mesh_topology->index_map(ent_dim)->index_to_dest_ranks();
+  auto imap = ghosted_mesh_topology->index_map(ent_dim);
+  auto entity_ranks = imap->index_to_dest_ranks();
   for (int i = 0; i < input_entities.size(); i++) {
     std::int32_t ent = input_entities[i];
     if (ent >= entity_ranks.num_nodes()) continue;
@@ -217,19 +225,77 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
       if (dest_entities.find(r) == dest_entities.end()) {
         dest_entities[r] = {i};
       }
-      else dest_entites[r].push_back(i);
+      else dest_entities[r].push_back(i);
     }
   }
 
-  // get source ranks
-  //std::vector<int> src = dolfinx::MPI::compute_graph_edges_nbx(comm, dest);
-  //MPI_Comm neigh_comm;
+  std::vector<std::int64_t> indices_send_buffer;
+  std::vector<T> tags_send_buffer;
 
+  // construct list of destination MPI ranks
+  std::vector<int> dest;
+  std::vector<int> send_sizes;
+  for (const auto& pair : dest_entities) {
+    dest.push_back(pair.first);
+    std::size_t num_inds = pair.second.size();
+    send_sizes.push_back(num_inds);
+    std::vector<std::int32_t> local_inds;
+    local_inds.reserve(num_inds);
+    for (const auto& i : pair.second) {
+      local_inds.push_back(input_entities[i]);
+      tags_send_buffer.push_back(input_values[i]);
+    }
+    std::vector<std::int64_t> global_inds(num_inds);
+    imap->local_to_global(local_inds, global_inds);
+    for (const auto& i : global_inds)
+      indices_send_buffer.push_back(i);
+  }
+  // get source ranks
+  std::vector<int> src = dolfinx::MPI::compute_graph_edges_nbx(comm, dest);
+  // Create neighbor communicator
+  MPI_Comm neigh_comm;
+  int ierr = MPI_Dist_graph_create_adjacent(
+      comm, dest.size(), dest.data(), MPI_UNWEIGHTED, src.size(),
+      src.data(), MPI_UNWEIGHTED, MPI_INFO_NULL, false, &neigh_comm);
+  dolfinx::MPI::check_error(comm, ierr);
+  // Share lengths of indices to be sent to each rank
+  std::vector<int> recv_sizes(src.size(), 0);
+  ierr = MPI_Neighbor_alltoall(send_sizes.data(), 1, MPI_INT,
+	                       recv_sizes.data(), 1, MPI_INT, neigh_comm);
+  dolfinx::MPI::check_error(comm, ierr);
+
+  // Prepare displacement arrays
+  std::vector<int> send_disp(dest.size() + 1, 0);
+  std::vector<int> recv_disp(src.size() + 1, 0);
+  std::partial_sum(send_sizes.begin(), send_sizes.end(),
+                   std::next(send_disp.begin()));
+  std::partial_sum(recv_sizes.begin(), recv_sizes.end(),
+                   std::next(recv_disp.begin()));
+  // next steps - construct recv buffers and perform communication 
+  std::vector<std::int64_t> indices_recv_buffer(recv_disp.back());
+  std::vector<T> tags_recv_buffer(recv_disp.back());
+
+  ierr = MPI_Neighbor_alltoallv(indices_send_buffer.data(), send_sizes.data(),
+	                        send_disp.data(), MPI_INT64_T,
+		                indices_recv_buffer.data(), recv_sizes.data(),
+				recv_disp.data(), MPI_INT64_T, neigh_comm);
+  dolfinx::MPI::check_error(comm, ierr);
+  ierr = MPI_Neighbor_alltoallv(tags_send_buffer.data(), send_sizes.data(),
+                                send_disp.data(), dolfinx::MPI::mpi_type<T>(),
+                                tags_recv_buffer.data(), recv_sizes.data(),
+                                recv_disp.data(), dolfinx::MPI::mpi_type<T>(), neigh_comm);
+  dolfinx::MPI::check_error(comm, ierr);
 
   // Ensure entities/values are sorted before creating new MeshTags object
   std::vector<std::pair<std::int32_t, T>> combined;
   for (int i = 0; i < input_entities.size(); i++)
     combined.emplace_back(input_entities[i], input_values[i]);
+
+  std::vector<std::int32_t> local_recv_indices(indices_recv_buffer.size());
+  imap->global_to_local(indices_recv_buffer, local_recv_indices);
+  for (int i = 0; i < indices_recv_buffer.size(); i++) {
+    combined.emplace_back(local_recv_indices[i], tags_recv_buffer[i]);
+  }
 
   std::sort(combined.begin(), combined.end(), 
              [](const std::pair<std::int32_t, T>& a, const std::pair<std::int32_t, T>& b) {
@@ -239,6 +305,10 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
   input_entities.clear();
   input_values.clear();
   for (const auto& pair : combined) {
+    if (input_entities.size()) {
+      // Avoid duplicates
+      if (input_entities.back() == pair.first) continue;
+    }
     input_entities.push_back(pair.first);
     input_values.push_back(pair.second);
   }
