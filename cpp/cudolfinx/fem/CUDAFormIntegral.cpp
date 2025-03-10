@@ -52,7 +52,7 @@ std::string compute_interior_facet_tensor(
 // add debugging code to assembly kernel
 std::string dump_assembly_vars(IntegralType integral_type);
 std::string dump_arr(const std::string& name, const std::string& length, const std::string& fmt);
-
+std::string find_offdiag_column_index();
 std::string interior_facet_extra_args();
 std::string interior_facet_pack_cell_coeffs(int32_t num_coeffs_per_cell);
 
@@ -892,7 +892,8 @@ std::string cuda_kernel_assemble_matrix_cell_global(
     "  const int32_t* __restrict__ offdiag_column_indices,\n"
     "  ufc_scalar_t* __restrict__ offdiag_values,\n"
     "  int32_t num_local_offdiag_columns,\n"
-    "  const int32_t* __restrict__ colmap)\n"
+    "  const int32_t* __restrict__ colmap_sorted,\n"
+    "  const int32_t* __restrict__ colmap_sorted_indices)\n"
     "{\n"
     "  int thread_idx = blockIdx.x * blockDim.x + threadIdx.x;\n"
     "\n"
@@ -967,21 +968,7 @@ std::string cuda_kernel_assemble_matrix_cell_global(
     "          } else {\n"
     "            /* Search for the correct column index in the column map\n"
     "             * of the off-diagonal part of the local matrix. */\n"
-    "            int32_t colmap_idx = -1;\n"
-    "            for (int q = 0; q < num_local_offdiag_columns; q++) {\n"
-    "              if (column == colmap[q]) {\n"
-    "                colmap_idx = q;\n"
-    "                break;\n"
-    "              }\n"
-    "            }\n"
-    "            assert(colmap_idx != -1);\n"
-    "            int r;\n"
-    "            int err = binary_search(\n"
-    "              offdiag_row_ptr[row+1] - offdiag_row_ptr[row],\n"
-    "              &offdiag_column_indices[offdiag_row_ptr[row]],\n"
-    "              colmap_idx, &r);\n"
-    "            assert(!err && \"Failed to find offdiag column index in assemble_matrix_cell_global!\");\n"
-    "            r += offdiag_row_ptr[row];\n"
+    + find_offdiag_column_index() + 
     "            atomicAdd(&offdiag_values[r],\n"
     "              Ae[j*" + std::to_string(num_dofs_per_cell1) + "+k]);\n"
     "          }\n"
@@ -1474,7 +1461,8 @@ std::string cuda_kernel_assemble_matrix_exterior_facet(
     "  const int32_t* __restrict__ offdiag_column_indices,\n"
     "  ufc_scalar_t* __restrict__ offdiag_values,\n"
     "  int32_t num_local_offdiag_columns,\n"
-    "  const int32_t* __restrict__ colmap)\n"
+    "  const int32_t* __restrict__ colmap_sorted,\n"
+    "  const int32_t* __restrict__ colmap_sorted_indices)\n"
     "{\n"
     "  int thread_idx = blockIdx.x * blockDim.x + threadIdx.x;\n"
     "\n"
@@ -1547,21 +1535,7 @@ std::string cuda_kernel_assemble_matrix_exterior_facet(
     "          } else {\n"
     "            /* Search for the correct column index in the column map\n"
     "             * of the off-diagonal part of the local matrix. */\n"
-    "            int32_t colmap_idx = -1;\n"
-    "            for (int q = 0; q < num_local_offdiag_columns; q++) {\n"
-    "              if (column == colmap[q]) {\n"
-    "                colmap_idx = q;\n"
-    "                break;\n"
-    "              }\n"
-    "            }\n"
-    "            assert(colmap_idx != -1);\n"
-    "            int r;\n"
-    "            int err = binary_search(\n"
-    "              offdiag_row_ptr[row+1] - offdiag_row_ptr[row],\n"
-    "              &offdiag_column_indices[offdiag_row_ptr[row]],\n"
-    "              colmap_idx, &r);\n"
-    "            assert(!err && \"Failed to find offidag column index in assemble_matrix_exterior_facet!\");\n"
-    "            r += offdiag_row_ptr[row];\n"
+    + find_offdiag_column_index() +
     "            atomicAdd(&offdiag_values[r],\n"
     "              Ae[j*" + std::to_string(num_dofs_per_cell1) + "+k]);\n"
     "          }\n"
@@ -1606,6 +1580,22 @@ std::string dump_assembly_vars(IntegralType integral_type)
     dump_arr("cell_vertex_coordinates", n_coords, "f");
 
   return body;
+}
+
+std::string find_offdiag_column_index(){
+    return
+    "            int32_t sorted_idx;\n"
+    "            int err = binary_search(num_local_offdiag_columns, colmap_sorted, column, &sorted_idx);\n"
+    "            assert(!err && \"Failed to find offdiag column index in colmap_sorted!\");\n"
+    "            int32_t colmap_idx = colmap_sorted_indices[sorted_idx];\n"
+    "            \n" 
+    "            int r;\n"
+    "            err = binary_search(\n"
+    "              offdiag_row_ptr[row+1] - offdiag_row_ptr[row],\n"
+    "              &offdiag_column_indices[offdiag_row_ptr[row]],\n"
+    "              colmap_idx, &r);\n"
+    "            assert(!err && \"Failed to find offdiag column index!\");\n"
+    "            r += offdiag_row_ptr[row];\n";
 }
 
 // For cell and exterior facet integrals, packed coefficients
@@ -1791,7 +1781,8 @@ std::string cuda_kernel_assemble_matrix_interior_facet(
     "  const int32_t* __restrict__ offdiag_column_indices,\n"
     "  ufc_scalar_t* __restrict__ offdiag_values,\n"
     "  int32_t num_local_offdiag_columns,\n"
-    "  const int32_t* __restrict__ colmap)\n"
+    "  const int32_t* __restrict__ colmap_sorted,\n"
+    "  const int32_t* __restrict__ colmap_sorted_indices)\n"
     "{\n"
     "  int thread_idx = blockIdx.x * blockDim.x + threadIdx.x;\n"
     "\n"
@@ -1851,21 +1842,7 @@ std::string cuda_kernel_assemble_matrix_interior_facet(
     "          } else {\n"
     "            /* Search for the correct column index in the column map\n"
     "             * of the off-diagonal part of the local matrix. */\n"
-    "            int32_t colmap_idx = -1;\n"
-    "            for (int q = 0; q < num_local_offdiag_columns; q++) {\n"
-    "              if (column == colmap[q]) {\n"
-    "                colmap_idx = q;\n"
-    "                break;\n"
-    "              }\n"
-    "            }\n"
-    "            assert(colmap_idx != -1);\n"
-    "            int r;\n"
-    "            int err = binary_search(\n"
-    "              offdiag_row_ptr[row+1] - offdiag_row_ptr[row],\n"
-    "              &offdiag_column_indices[offdiag_row_ptr[row]],\n"
-    "              colmap_idx, &r);\n"
-    "            assert(!err && \"Failed to find offdiag column index in assemble_matrix_interior_facet!\");\n"
-    "            r += offdiag_row_ptr[row];\n"
+    + find_offdiag_column_index() +
     "            atomicAdd(&offdiag_values[r],\n"
     "              Ae[j*2*" + std::to_string(num_dofs_per_cell1) + "+k]);\n"
     "          }\n"

@@ -75,8 +75,10 @@ public:
   const CUDASeqMatrix * offdiag() const { return _offdiag.get(); }
   CUDASeqMatrix * offdiag() { return _offdiag.get(); }
 
-  /// Get the number of matrix rows
+  /// Methods to get off diagonal column mapping
   CUdeviceptr colmap() const { return _dcolmap; }
+  CUdeviceptr colmap_sorted() const { return _dcolmap_sorted; }
+  CUdeviceptr colmap_sorted_indices() const { return _dcolmap_sorted_indices; }
 
   /// Get the number of matrix rows
   int32_t num_rows() const { return _num_rows; }
@@ -128,6 +130,8 @@ private:
   /// Device-side mapping from columns of the local, off-diagonal
   /// block of the matrix to columns of the global matrix.
   CUdeviceptr _dcolmap;
+  CUdeviceptr _dcolmap_sorted;
+  CUdeviceptr _dcolmap_sorted_indices;
 
   /// The number of rows in the global matrix
   int32_t _num_rows;

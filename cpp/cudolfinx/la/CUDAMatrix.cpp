@@ -119,25 +119,25 @@ CUDAMatrix::CUDAMatrix(
 
     // Allocate device-side storage for off-diagonal column map
     if (_num_local_offdiag_columns > 0) {
-      size_t dcolmap_size = _num_local_offdiag_columns * sizeof(int32_t);
-      cuda_err = cuMemAlloc(&_dcolmap, dcolmap_size);
-      if (cuda_err != CUDA_SUCCESS) {
-        cuGetErrorString(cuda_err, &cuda_err_description);
-        throw std::runtime_error(
-          "cuMemAlloc() failed with " + std::string(cuda_err_description) +
-          " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
+      std::vector<std::pair<std::int32_t, std::int32_t>> combined;
+      for (int i = 0; i < colmap_local.size(); i++) {
+        combined.emplace_back(colmap_local[i], i);
+      }
+      std::sort(combined.begin(), combined.end(),
+            [](const std::pair<std::int32_t, std::int32_t>& a, const std::pair<std::int32_t, std::int32_t>& b) {
+              return a.first < b.first;
+            });
+      std::vector<std::int32_t> colmap_sorted(combined.size());
+      std::vector<std::int32_t> colmap_sorted_indices(combined.size());
+
+      for (int i = 0; i < combined.size(); i++) {
+	 colmap_sorted[i] = combined[i].first;
+         colmap_sorted_indices[i] = combined[i].second;
       }
 
-      // Copy off-diagonal column map to device
-      cuda_err = cuMemcpyHtoD(
-        _dcolmap, colmap_local.data(), dcolmap_size);
-      if (cuda_err != CUDA_SUCCESS) {
-        cuGetErrorString(cuda_err, &cuda_err_description);
-        cuMemFree(_dcolmap);
-        throw std::runtime_error(
-          "cuMemcpyHtoD() failed with " + std::string(cuda_err_description) +
-          " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
-      }
+      dolfinx::CUDA::safeVectorCreate<std::int32_t>(&_dcolmap, colmap_local);
+      dolfinx::CUDA::safeVectorCreate<std::int32_t>(&_dcolmap_sorted, colmap_sorted);
+      dolfinx::CUDA::safeVectorCreate<std::int32_t>(&_dcolmap_sorted_indices, colmap_sorted_indices);
     }
 
   } else {

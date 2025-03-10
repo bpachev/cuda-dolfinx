@@ -9,6 +9,7 @@
 #include <cuda.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace dolfinx
 {
@@ -141,6 +142,13 @@ void safeMemcpyHtoD(CUdeviceptr dstDevice, void* srcHost, size_t ByteCount);
 void safeDeviceGetAttribute(int * res, CUdevice_attribute attr, CUdevice dev);
 void safeCtxSynchronize();
 void safeStreamCreate(CUstream* streamptr, unsigned int flags);
+
+template <typename T> void safeVectorCreate(CUdeviceptr* dptr, std::vector<T> arr) {
+  size_t bytesize = sizeof(T) * arr.size();
+  safeMemAlloc(dptr, bytesize);
+  safeMemcpyHtoD(*dptr, (void *)arr.data(), bytesize);
+}
+
 CUjit_target get_cujit_target(const Context& cuda_context);
 
 } // namespace CUDA

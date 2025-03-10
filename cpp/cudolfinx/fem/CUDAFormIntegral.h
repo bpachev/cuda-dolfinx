@@ -1272,7 +1272,8 @@ public:
     CUdeviceptr doffdiag_column_indices = A.offdiag() ? A.offdiag()->column_indices() : 0;
     CUdeviceptr doffdiag_values = A.offdiag() ? A.offdiag()->values() : 0;
     std::int32_t num_local_offdiag_columns = A.num_local_offdiag_columns();
-    CUdeviceptr dcolmap = A.colmap();
+    CUdeviceptr dcolmap_sorted = A.colmap_sorted();
+    CUdeviceptr dcolmap_sorted_indices = A.colmap_sorted_indices();
 
     // Use the CUDA occupancy calculator to determine a grid and block
     // size for the CUDA kernel
@@ -1326,7 +1327,9 @@ public:
       &doffdiag_column_indices,
       &doffdiag_values,
       &num_local_offdiag_columns,
-      &dcolmap};
+      &dcolmap_sorted,
+      &dcolmap_sorted_indices
+    };
     cuda_err = launch_cuda_kernel(
       kernel, grid_dim_x, grid_dim_y, grid_dim_z,
       block_dim_x, block_dim_y, block_dim_z,
@@ -1620,7 +1623,8 @@ public:
     CUdeviceptr doffdiag_column_indices = A.offdiag() ? A.offdiag()->column_indices() : 0;
     CUdeviceptr doffdiag_values = A.offdiag() ? A.offdiag()->values() : 0;
     std::int32_t num_local_offdiag_columns = A.num_local_offdiag_columns();
-    CUdeviceptr dcolmap = A.colmap();
+    CUdeviceptr dcolmap_sorted = A.colmap_sorted();
+    CUdeviceptr dcolmap_sorted_indices = A.colmap_sorted_indices();
 
 
     // Use the CUDA occupancy calculator to determine a grid and block
@@ -1690,7 +1694,8 @@ public:
       &doffdiag_column_indices,
       &doffdiag_values,
       &num_local_offdiag_columns,
-      &dcolmap});
+      &dcolmap_sorted,
+      &dcolmap_sorted_indices});
 
 
     cuda_err = launch_cuda_kernel(
