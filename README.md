@@ -1,8 +1,6 @@
 # About
 
-NOTICE: This repository is still under construction - more examples and documentation are forthcoming.
-
-This repository is an add-on extension to the DOLFINx library providing GPU accelerated assembly routines. Currently only NVIDIA GPUs are supported, and only single-GPU assembly is supported.
+This repository is an add-on extension to the DOLFINx library providing CUDA accelerated assembly routines. It complements the CUDA linear solvers in PETSc to enable fully GPU-accelerated DOLFINx codes. It is designed to enable GPU acceleration for existing codes with minimal changes.
 
 # Basic Usage
 
@@ -15,6 +13,7 @@ cuda_L = cufem.form(L)
 asm = cufem.CUDAAssembler()
 # returns a custom type CUDAMatrix
 mat = asm.assemble_matrix(cuda_A)
+mat.assemble()
 # get PETSc matrix
 petsc_mat = mat.mat()
 # returns a custom type CUDAVector
