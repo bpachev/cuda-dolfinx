@@ -20,7 +20,7 @@ ARG OPENMPI_PATCH=7
 
 ########################################
 
-LABEL maintainer="Benjamin Pachev <benjaminpachev@googlegroups.com>"
+LABEL maintainer="Benjamin Pachev <benjaminpachev@gmail.com>"
 LABEL description="Modified FEniCS dev environment with CUDA PETSc installed."
 
 ARG ADIOS2_VERSION
