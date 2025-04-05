@@ -79,4 +79,9 @@ RUN cd cuda-dolfinx && \
       --config-settings=cmake.build-type="${DOLFINX_CMAKE_BUILD_TYPE}" --config-settings=install.strip=false --no-build-isolation --check-build-dependencies \
       --target /usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages --no-dependencies --no-cache-dir '.'
 
-
+# Prepending /usr/local to paths is needed to make the correct version of MPI be used (not the one that comes with NVHPC)
+# Since this container doesn't currently install GPU aware MPI, PETSc needs the gpu aware MPI option turned off
+# TODO: fix the base container to install GPU-aware MPI
+ENV PETSC_OPTIONS="-use_gpu_aware_mpi 0" \
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
+    PATH=/usr/local/bin:$PATH
