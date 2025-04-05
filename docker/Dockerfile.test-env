@@ -1,0 +1,241 @@
+FROM nvcr.io/nvidia/nvhpc:24.9-devel-cuda12.6-ubuntu24.04 as cudolfinx-dev-env
+
+ARG ADIOS2_VERSION=2.10.2
+ARG DOXYGEN_VERSION=1_13_2
+ARG GMSH_VERSION=4_13_1
+ARG HDF5_VERSION=1.14.6
+ARG KAHIP_VERSION=3.18
+# NOTE: The NumPy version (https://pypi.org/project/numpy/#history)
+# should be pinned to the most recent NumPy release that is supported by
+# the most recent Numba release, see
+# https://numba.readthedocs.io/en/stable/user/installing.html#version-support-information
+ARG NUMPY_VERSION=2.1.3
+ARG PETSC_VERSION=3.22.4
+ARG SLEPC_VERSION=3.22.2
+ARG SPDLOG_VERSION=1.15.1
+
+ARG MPICH_VERSION=4.2.3
+ARG OPENMPI_SERIES=5.0
+ARG OPENMPI_PATCH=7
+
+########################################
+
+LABEL maintainer="Benjamin Pachev <benjaminpachev@gmail.com>"
+LABEL description="Modified FEniCS dev environment with CUDA PETSc installed."
+
+ARG ADIOS2_VERSION
+ARG DOXYGEN_VERSION
+ARG GMSH_VERSION
+ARG HDF5_VERSION
+ARG KAHIP_VERSION
+ARG PETSC_VERSION
+ARG SLEPC_VERSION
+ARG SPDLOG_VERSION
+ARG NUMPY_VERSION
+ARG MPICH_VERSION
+ARG OPENMPI_SERIES
+ARG OPENMPI_PATCH
+
+# The following ARGS are used in the dev-env layer.
+# They are safe defaults. They can be overridden by the user.
+# Compiler optimisation flags for SLEPc and PETSc, all languages.
+ARG PETSC_SLEPC_OPTFLAGS="-O2"
+# Turn on PETSc and SLEPc debugging. "yes" or "no".
+ARG PETSC_SLEPC_DEBUGGING="no"
+
+# MPI variant. "mpich" or "openmpi".
+ARG MPI="openmpi"
+
+# Number of build threads to use with make
+ARG BUILD_NP=4
+
+WORKDIR /tmp
+
+# Environment variables
+ENV OPENBLAS_NUM_THREADS=1 \
+    OPENBLAS_VERBOSE=0
+
+# Install dependencies available via apt-get.
+# - First set of packages are required to build and run FEniCS.
+# - Second set of packages are recommended and/or required to build
+#   documentation or tests.
+# - Third set of packages are optional, but required to run gmsh
+#   pre-built binaries.
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get -qq update && \
+    apt-get -yq --with-new-pkgs -o Dpkg::Options::="--force-confold" upgrade && \
+    apt-get -y install \
+    cmake \
+    g++ \
+    gfortran \
+    libboost-dev \
+    liblapack-dev \
+    libopenblas-dev \
+    libpugixml-dev \
+    ninja-build \
+    pkg-config \
+    python3-dev \
+    python3-pip \
+    python3-venv && \
+    #
+    apt-get -y install \
+    catch2 \
+    git \
+    graphviz \
+    libeigen3-dev \
+    valgrind \
+    wget && \
+    #
+    apt-get -y install \
+    libglu1 \
+    libxcursor-dev \
+    libxft2 \
+    libxinerama1 \
+    libfltk1.3-dev \
+    libfreetype6-dev  \
+    libgl1-mesa-dev \
+    libocct-foundation-dev \
+    libocct-data-exchange-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Install spdlog from source - Ubuntu version is incompatible with CUDA 12.
+RUN wget -nc --quiet https://github.com/gabime/spdlog/archive/refs/tags/v${SPDLOG_VERSION}.tar.gz && \
+    tar xfz v${SPDLOG_VERSION}.tar.gz && \
+    cd spdlog-${SPDLOG_VERSION} && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=ON -DSPDLOG_BUILD_PIC=ON -B build-dir . && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    rm -rf /tmp/*
+
+# Install Doxygen
+RUN apt-get -qq update && \
+    apt-get -y install bison flex && \
+    wget -nc --quiet https://github.com/doxygen/doxygen/archive/refs/tags/Release_${DOXYGEN_VERSION}.tar.gz && \
+    tar xfz Release_${DOXYGEN_VERSION}.tar.gz && \
+    cd doxygen-Release_${DOXYGEN_VERSION} && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build-dir . && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    apt-get -y purge bison flex && \
+    apt-get -y autoremove && \
+    apt-get clean && \
+    rm -rf /tmp/*
+
+# Install MPI
+RUN if [ "$MPI" = "mpich" ]; then \
+    wget https://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz && \
+    tar xfz mpich-${MPICH_VERSION}.tar.gz  && \
+    cd mpich-${MPICH_VERSION}  && \
+    ./configure && \
+    make -j${BUILD_NP} install; \
+    else \
+    wget https://download.open-mpi.org/release/open-mpi/v${OPENMPI_SERIES}/openmpi-${OPENMPI_SERIES}.${OPENMPI_PATCH}.tar.gz && \
+    tar xfz openmpi-${OPENMPI_SERIES}.${OPENMPI_PATCH}.tar.gz  && \
+    cd openmpi-${OPENMPI_SERIES}.${OPENMPI_PATCH} && \
+    ./configure  && \
+    make -j${BUILD_NP} install; \
+    fi && \
+    ldconfig && \
+    rm -rf /tmp/*
+
+ENV VIRTUAL_ENV=/dolfinx-env
+ENV PATH=/dolfinx-env/bin:$PATH
+RUN python3 -m venv ${VIRTUAL_ENV}
+
+# Install Python packages (via pip)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir cython numpy==${NUMPY_VERSION} && \
+    CFLAGS="-noswitcherror" pip install --no-cache-dir mpi4py
+
+# Install KaHIP
+RUN wget -nc --quiet https://github.com/kahip/kahip/archive/v${KAHIP_VERSION}.tar.gz && \
+    tar -xf v${KAHIP_VERSION}.tar.gz && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DNONATIVEOPTIMIZATIONS=on -B build-dir -S KaHIP-${KAHIP_VERSION} && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    rm -rf /tmp/*
+
+# Install HDF5
+# Note: HDF5 CMake install has numerous bugs and inconsistencies. Test carefully.
+# HDF5 overrides CMAKE_INSTALL_PREFIX by default, hence it is set
+# below to ensure that HDF5 is installed into a path where it can be
+# found.
+RUN wget -nc --quiet https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5_${HDF5_VERSION}.tar.gz && \
+    tar xfz hdf5_${HDF5_VERSION}.tar.gz && \
+    cmake -G Ninja -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release -DHDF5_ENABLE_PARALLEL=on -DHDF5_ENABLE_Z_LIB_SUPPORT=on -B build-dir -S hdf5-hdf5_${HDF5_VERSION} && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    rm -rf /tmp/*
+
+# Install ADIOS2 (Python interface in /usr/local/lib), same as GMSH
+RUN wget -nc --quiet https://github.com/ornladios/ADIOS2/archive/v${ADIOS2_VERSION}.tar.gz -O adios2-v${ADIOS2_VERSION}.tar.gz && \
+    mkdir -p adios2-v${ADIOS2_VERSION} && \
+    tar -xf adios2-v${ADIOS2_VERSION}.tar.gz -C adios2-v${ADIOS2_VERSION} --strip-components 1 && \
+    cmake -G Ninja -DADIOS2_USE_HDF5=on -DCMAKE_INSTALL_PYTHONDIR=/usr/local/lib/ -DADIOS2_USE_Fortran=off -DBUILD_TESTING=off -DADIOS2_BUILD_EXAMPLES=off -DADIOS2_USE_ZeroMQ=off -B build-dir -S ./adios2-v${ADIOS2_VERSION} && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    rm -rf /tmp/*
+
+# Install GMSH
+RUN git clone -b gmsh_${GMSH_VERSION} --single-branch --depth 1 https://gitlab.onelab.info/gmsh/gmsh.git && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_BUILD_DYNAMIC=1  -DENABLE_OPENMP=1 -B build-dir -S gmsh && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    rm -rf /tmp/*
+
+# GMSH installs python library in /usr/local/lib, see: https://gitlab.onelab.info/gmsh/gmsh/-/issues/1414
+ENV PYTHONPATH=/usr/local/lib:$PYTHONPATH
+
+# Install PETSc and petsc4py with real and complex types
+ENV PETSC_DIR=/usr/local/petsc SLEPC_DIR=/usr/local/slepc
+RUN ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/24.9/cuda/lib64/stubs/libcuda.so /opt/nvidia/hpc_sdk/Linux_x86_64/24.9/cuda/lib64/stubs/libcuda.so.1
+RUN apt-get -qq update && \
+    apt-get -y install bison flex && \
+    git clone --depth=1 -b v${PETSC_VERSION} https://gitlab.com/petsc/petsc.git ${PETSC_DIR} && \
+    cd ${PETSC_DIR} && \
+    # Real64, 32-bit int with CUDA
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_x86_64/24.9/cuda/lib64/stubs/ ./configure \
+    PETSC_ARCH=linux-gnu-real64-32-cuda \
+    --COPTFLAGS="${PETSC_SLEPC_OPTFLAGS}" \
+    --CXXOPTFLAGS="${PETSC_SLEPC_OPTFLAGS}" \
+    --FOPTFLAGS="${PETSC_SLEPC_OPTFLAGS}" \
+    --with-64-bit-indices=no \
+    --with-debugging=${PETSC_SLEPC_DEBUGGING} \
+    --with-fortran-bindings=no \
+    --with-shared-libraries \
+    --download-hypre \
+    --download-metis \
+    --download-mumps-avoid-mpi-in-place \
+    --download-mumps \
+    --download-ptscotch \
+    --download-scalapack \
+    --with-cuda\
+    --download-spai \
+    --download-suitesparse \
+    --with-scalar-type=real \
+    --with-precision=double && \
+    make PETSC_ARCH=linux-gnu-real64-32-cuda ${MAKEFLAGS} all 
+
+    # Install petsc4py
+RUN cd ${PETSC_DIR}/src/binding/petsc4py && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda CFLAGS="-noswitcherror" pip -v install --no-cache-dir --no-build-isolation . && \
+    # Cleanup
+    apt-get -y purge bison flex && \
+    apt-get -y autoremove && \
+    apt-get clean && \
+    rm -rf \
+    ${PETSC_DIR}/**/tests/ \
+    ${PETSC_DIR}/**/obj/ \
+    ${PETSC_DIR}/**/externalpackages/  \
+    ${PETSC_DIR}/CTAGS \
+    ${PETSC_DIR}/RDict.log \
+    ${PETSC_DIR}/TAGS \
+    ${PETSC_DIR}/docs/ \
+    ${PETSC_DIR}/share/ \
+    ${PETSC_DIR}/src/ \
+    ${PETSC_DIR}/systems/ \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+WORKDIR /root
+

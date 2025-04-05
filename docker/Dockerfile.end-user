@@ -1,0 +1,82 @@
+# Dockerfile describing end-user CUDA-accelerated FEniCS environments
+# Modified version of the DOLFINx end user Docker file
+#
+# Authors:
+# Benjamin Pachev <benjamin.pachev@gmail.com>
+#
+
+ARG PYVISTA_VERSION=0.44.2
+
+# Used to set the correct PYTHONPATH for the real and complex install of
+# DOLFINx
+ARG PYTHON_VERSION=3.12
+# Base image for end-user images
+ARG BASEIMAGE=benpachev/cudolfinx:dev-env-v0.9.0
+ARG CUDOLFINX_TAG=v0.9.0
+
+FROM ${BASEIMAGE} as cudolfinx
+LABEL description="cuDOLFINx (onbuild)"
+
+ARG PYTHON_VERSION
+
+WORKDIR /src
+
+RUN git clone --depth 1 --branch v0.9.0 https://github.com/FEniCS/dolfinx.git
+RUN git clone --depth 1 --branch v0.9.0 https://github.com/FEniCS/ffcx.git 
+RUN git clone --depth 1 --branch v0.9.0 https://github.com/FEniCS/basix.git
+RUN git clone --depth 1 --branch 2024.2.0 https://github.com/FEniCS/ufl.git
+RUN git clone --depth 1 --branch v0.9.0 https://github.com/bpachev/cuda-dolfinx.git
+
+RUN cp dolfinx/docker/dolfinx-real-mode /usr/local/bin/dolfinx-real-mode
+RUN chmod +x /usr/local/bin/dolfinx-*-mode
+
+# CMake build type for DOLFINx C++ build. See CMake documentation.
+ARG DOLFINX_CMAKE_BUILD_TYPE="Release"
+
+# Using pip install `.[test]` with --no-dependencies and --no-build-isolation
+# does not install necessary packages, hence install build and optional
+# dependencies manually here.
+RUN pip install --no-cache-dir -r dolfinx/python/build-requirements.txt && \
+            pip install --no-cache-dir pyamg pytest scipy matplotlib numba # test + optional set
+
+RUN cd basix && cmake -G Ninja -DCMAKE_BUILD_TYPE=${DOLFINX_CMAKE_BUILD_TYPE} -B build-dir -S ./cpp && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    pip install ./python && \
+    cd ../ufl && pip install --no-cache-dir . && \
+    cd ../ffcx && pip install --no-cache-dir . && \
+    cd ../ && pip install --no-cache-dir ipython
+
+RUN apt-get -qq update && \
+    apt-get install -y libboost-timer-dev libboost-filesystem-dev
+
+# --no-dependencies necessary as --target does not contain any dependencies e.g.
+# mpi4py - leading to unwanted rebuild.
+RUN cd dolfinx && \
+    mkdir -p build-real && \
+    cd build-real && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda cmake -G Ninja -DCMAKE_INSTALL_PREFIX=/usr/local/dolfinx-real -DCMAKE_BUILD_TYPE=${DOLFINX_CMAKE_BUILD_TYPE} ../cpp && \
+    ninja install && \
+    cd ../python && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda pip -v install \
+      --config-settings=cmake.build-type="${DOLFINX_CMAKE_BUILD_TYPE}" --config-settings=install.strip=false --no-build-isolation --check-build-dependencies \
+      --target /usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages --no-dependencies --no-cache-dir '.'  
+
+# Currently cuDOLFINX only supports real mode, as the CUDA version of PETSc appears to not compile with complex types . . . . 
+ENV PKG_CONFIG_PATH=/usr/local/dolfinx-real/lib/pkgconfig:$PKG_CONFIG_PATH \
+    CMAKE_PREFIX_PATH=/usr/local/dolfinx-real/lib/cmake:$CMAKE_PREFIX_PATH \
+    PETSC_ARCH=linux-gnu-real64-32-cuda \
+    PYTHONPATH=/usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages:$PYTHONPATH \
+    LD_LIBRARY_PATH=/usr/local/dolfinx-real/lib:$LD_LIBRARY_PATH
+
+RUN cd cuda-dolfinx && \
+    mkdir -p build-real && \
+    cd build-real && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda cmake -G Ninja -DCMAKE_INSTALL_PREFIX=/usr/local/dolfinx-real -DCMAKE_BUILD_TYPE=${DOLFINX_CMAKE_BUILD_TYPE} ../cpp && \
+    ninja install && \
+    cd ../python && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda pip -v install \
+      --config-settings=cmake.build-type="${DOLFINX_CMAKE_BUILD_TYPE}" --config-settings=install.strip=false --no-build-isolation --check-build-dependencies \
+      --target /usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages --no-dependencies --no-cache-dir '.'
+
+
