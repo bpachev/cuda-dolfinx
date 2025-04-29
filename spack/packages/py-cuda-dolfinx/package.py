@@ -21,11 +21,11 @@ class PyCudaDolfinx(PythonPackage):
 
     depends_on("cxx", type="build")
     depends_on("cmake@3.21:", when="@0.9:", type="build")
+    depends_on("cuda-dolfinx@main", when="@main")
     depends_on("cuda-dolfinx@0.9.0", when="@0.9.0")
-    depends_on("cuda-dolfinx@main", when="main")
     depends_on("pkgconfig", type="build")
     depends_on("py-nanobind@2:", when="@0.9:", type="build")
-    depends_on("py-scikit-build-core+pyproject@0.5:", when="@0.8:0.9", type="build")
+    depends_on("py-scikit-build-core+pyproject@0.5:", when="@0.9:", type="build")
 
     build_directory = "python"
 
