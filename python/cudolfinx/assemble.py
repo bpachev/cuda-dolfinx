@@ -20,7 +20,7 @@ from dolfinx import fem as fe
 from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp
 from cudolfinx.bcs import CUDADirichletBC
-from cudolfinx.form import CUDAForm
+from cudolfinx.form import CUDAForm, BlockCUDAForm
 from cudolfinx.la import CUDAMatrix, CUDAVector
 from petsc4py import PETSc
 import numpy as np
@@ -111,7 +111,7 @@ class CUDAAssembler:
   def assemble_vector(self,
     b: CUDAForm,
     vec: typing.Optional[CUDAVector] = None,
-    constants=None, coeffs=None
+    constants=None, coeffs=None, zero=True
   ):
     """Assemble linear form into vector on GPU
 
@@ -121,10 +121,11 @@ class CUDAAssembler:
         constants: Form constants
         coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
            If an empty list is passed, no repacking will be performed.
+        zero: Whether to zero vector entries before assembly (defaults to true)
     """
 
     if not isinstance(b, CUDAForm):
-      raise TypeError("Expected CUDAForm, got '{type(b)}'")
+      raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
 
     if vec is None:
       vec = self.create_vector(b)
@@ -132,9 +133,48 @@ class CUDAAssembler:
     # This assumes something has changed on the host
     b.to_device() 
     self.pack_coefficients(b, coeffs) 
+    if zero:
+      _cucpp.fem.zero_vector_entries(self._ctx, self._cpp_object, vec._cpp_object)
+    
     _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b.cuda_form,
       b.cuda_mesh, vec._cpp_object)
     return vec
+
+  def assemble_vector_block(self,
+    b: BlockCUDAForm,
+    vec: typing.Optional[CUDAVector] = None,
+    constants=None, coeffs=None, zero=True
+  ):
+    """Assemble block linear form into vector on GPU
+
+    Args:
+        b: the block linear form to use for assembly
+        vec: the vector to assemble into. Created if not provided
+        constants: List of constants for each sub form
+        coeffs:  Optional list of form coefficients to repack. If not specified, all will be repacked.
+           If an empty list is passed, no repacking will be performed.
+        zero: Whether to zero vector entries before assembly (defaults to true)
+    """
+
+    if not isinstance(b, BlockCUDAForm):
+      raise TypeError(f"Expected BlockCUDAForm, got '{type(b)}'")
+
+    if vec is None:
+      vec = self.create_vector_block(b)
+
+    num_forms = len(b.forms)
+    _constants = [None]*num_forms if constants is None else constants
+    _coeffs = [None]*num_forms if coeffs is None else coeffs
+
+    if len(_constants) != num_forms:
+      raise ValueError(f"Expected constants to be None or a list of length: '{num_forms}', got '{len(_constants)}' instead!")
+    if len(_coeffs) != num_forms:
+      raise ValueError(f"Expected coeffs to be None or a list of length: '{num_forms}', got '{len(_coeffs)}' instead!")
+    
+    if zero:
+      _cucpp.fem.zero_vector_entries(self._ctx, self._cpp_object, vec._cpp_object)
+    for form, form_constants, form_coeffs in zip(b.forms, _constants, _coeffs):
+      self.assemble_vector(form, vec=vec, constants=form_constants, coeffs=form_coeffs, zero=False)
 
   def create_matrix(self, a: CUDAForm) -> CUDAMatrix:
     """Create a CUDAMatrix from a given form
@@ -150,6 +190,15 @@ class CUDAAssembler:
     if not isinstance(b, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got type '{type(b)}'.")
     petsc_vec = create_petsc_cuda_vector(b.dolfinx_form)
+    return CUDAVector(self._ctx, petsc_vec)
+
+  def create_vector_block(self, b: BlockCUDAForm) -> CUDAVector:
+    """Create a CUDAVector from a given form."""
+
+    if not isinstance(b, BlockCUDAForm):
+      raise TypeError(f"Expected BlockCUDAForm, got type '{type(b)}')")
+
+    petsc_vec = PETSc.Vec().createCUDAWithArrays(cpuarray=np.zeros(b.local_size), size=b.local_size)
     return CUDAVector(self._ctx, petsc_vec)
 
   def pack_bcs(self, bcs: list[DirichletBC]) -> CUDADirichletBC:

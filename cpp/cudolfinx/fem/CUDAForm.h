@@ -89,6 +89,8 @@ public:
   virtual ~CUDAForm() = default;
 
   bool compiled() { return _compiled; }
+
+  bool restricted() { return _restricted_dofmaps.size() > 0; }
   
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& integrals() {
     if (!_compiled) {
@@ -101,7 +103,16 @@ public:
 
   const CUDAFormConstants<T>& constants() { return _constants; }
 
-  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {return _dofmap_store.get_device_object(_form->function_spaces()[i]->dofmap().get()); }
+  std::shared_ptr<const CUDADofMap> unrestricted_dofmap(size_t i) {
+    if (i >= _form->function_spaces().size()) throw std::runtime_error("Dofmap index out of bounds!");
+    return _dofmap_store.get_device_object(_form->function_spaces()[i]->dofmap().get());
+  }
+
+  std::shared_ptr<const CUDADofMap> dofmap(size_t i) {
+    if (!restricted()) return unrestricted_dofmap(i);
+    if (i >= _restricted_dofmaps.size()) throw std::runtime_error("Dofmap index out of bounds!");
+    return _restricted_dofmaps[i];
+  }
 
   Form<T,U>* form() { return _form; }
 
@@ -120,9 +131,35 @@ public:
     _constants.update_constant_values(); 
   }
 
+  void set_restriction(std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> restriction)
+  {
+    if (restriction.size() != _form->function_spaces().size()) {
+      throw std::runtime_error("Number of restrictions must equal arity of form (1 for vector, 2 for matrix)!");
+    }
+
+    if (_restricted_dofmaps.size()) {
+      // need to update the restriction
+      for (int i = 0; i < _restricted_dofmaps.size(); i++) {
+        _restricted_dofmaps[i]->update(restriction[i].get());
+      } 
+    }
+    else {
+      for (int i = 0; i < restriction.size(); i++) {
+        _restricted_dofmaps.push_back(
+          std::make_shared<CUDADofMap>(
+	    _form->function_spaces()[i]->dofmap().get(),
+	    restriction[i].get()
+	  )
+	);
+      }
+    }
+  }
+
 private:
   // Cache of CUDADofMaps
   common::CUDAStore<DofMap, CUDADofMap> _dofmap_store;
+  // Restricted dofmaps
+  std::vector<std::shared_ptr<CUDADofMap>> _restricted_dofmaps;
   // Form coefficients
   CUDAFormCoefficients<T, U> _coefficients;
   // Form Constants

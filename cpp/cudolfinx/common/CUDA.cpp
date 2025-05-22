@@ -460,7 +460,7 @@ void CUDA::safeMemcpyDtoH(void * dstHost, CUdeviceptr srcDevice, size_t ByteCoun
   } 
 }
 
-void CUDA::safeMemcpyHtoD(CUdeviceptr dstDevice, void* srcHost, size_t ByteCount)
+void CUDA::safeMemcpyHtoD(CUdeviceptr dstDevice, const void* srcHost, size_t ByteCount)
 {
   const char * cuda_err_description;
   CUresult cuda_err = cuMemcpyHtoD(dstDevice, srcHost, ByteCount);

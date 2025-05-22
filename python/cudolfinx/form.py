@@ -8,7 +8,8 @@ from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp, jit
 from dolfinx import fem as fe
 from dolfinx import cpp as _cpp
-import typing
+import numpy as np
+import typing 
 import ufl
 
 class CUDAForm:
@@ -83,6 +84,78 @@ class CUDAForm:
         """
 
         return self._dolfinx_form.function_spaces
+
+class BlockCUDAForm:
+    """Data structure containing multiple CUDA forms to be used in block assembly."""
+
+    def __init__(
+        self, forms: typing.Union[list[CUDAForm], list[list[CUDAForm]]],
+        restrictions: typing.Optional[
+            typing.Union[
+                list[np.typing.NDArray[np.int32]],
+                tuple[list[np.typing.NDArray[np.int32]], list[np.typing.NDArray[np.int32]]]
+        ]] = None
+    ):
+        """Initialize the data structure."""
+
+        self._forms = forms
+        self._restrictions = restrictions
+
+        if not len(forms): raise ValueError("Must provide at least one form!")
+        if type(forms[0]) is CUDAForm: self._init_vector()
+        else: self._init_matrix()
+
+    def _init_vector(self):
+        """Initialize vector form."""
+
+        offset = 0
+        offsets = [offset]
+        for i, form in enumerate(self._forms):
+            # note in dolfinx 0.10.0 dofmap is replaced with dofmaps
+            # which means this portion will require reworking
+            dofmap = form.function_spaces[0].dofmap
+            local_size = dofmap.index_map.size_local 
+            if self._restrictions is not None:
+                restriction_inds = self._restrictions[i]
+                local_size = len(restriction_inds) 
+            else:
+                restriction_inds = np.arange(local_size, dtype=np.int32)
+            target_inds = offset + restriction_inds
+            offset += local_size
+            offsets.append(offset)
+            form.cuda_form.set_restriction([restriction_inds], [target_inds])
+
+        self._offsets = offsets
+
+    def _init_matrix(self):
+        """Initialize matrix form."""
+
+        raise NotImplementedError("Block matrix assembly is not yet implemented!")
+
+    @property
+    def forms(self):
+        """Return the list of forms."""
+
+        return self._forms
+
+    @property
+    def dolfinx_forms(self):
+        """Return list of underlying dolfinx forms."""
+
+        return [f.dolfinx_form for f in self._forms]
+
+    @property
+    def offsets(self):
+        """Return list of offsets."""
+
+        return self._offsets
+
+    @property
+    def local_size(self):
+        """Return size of local vector."""
+
+        return self._offsets[-1]
+
 
 def form(form: ufl.Form, **kwargs):
     """Create a CUDAForm from a ufl form

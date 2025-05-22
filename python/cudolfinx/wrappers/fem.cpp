@@ -98,7 +98,27 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                cf.compile(cuda_context, max_threads_per_block,
                           min_blocks_per_multiprocessor, dolfinx::fem::assembly_kernel_type::ASSEMBLY_KERNEL_GLOBAL);
              }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"))
+      .def(
+          "set_restriction",
+	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<std::vector<int32_t>>& restricted_inds,
+             std::vector<std::vector<int32_t>>& target_inds)
+	     {
+	       if (restricted_inds.size() != target_inds.size()) {
+                 throw std::runtime_error("Length of restricted inds and target inds lists must match!");
+               }
+               std::vector<std::shared_ptr<std::map<::int32_t, std::int32_t>>> restrictions;
+               for (int i = 0; i < restricted_inds.size(); i++) {
+                 auto m = std::make_shared<std::map<std::int32_t, std::int32_t>>();
+                 if (restricted_inds[i].size() != target_inds[i].size()) {
+                   throw std::runtime_error("Length of restricted ind array and target ind array must match!");
+                 }
+                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = target_inds[i][j];
+                 restrictions.push_back(m);
+               }
+               cf.set_restriction(restrictions);
+	     }, nb::arg("restricted_inds"), nb::arg("target_inds"))
       .def_prop_ro("compiled", &dolfinx::fem::CUDAForm<T,U>::compiled)
+      .def_prop_ro("restricted", &dolfinx::fem::CUDAForm<T,U>::restricted)
       .def("to_device", &dolfinx::fem::CUDAForm<T,U>::to_device);
 
   pyclass_name = std::string("CUDADirichletBC_") + type;
@@ -245,6 +265,17 @@ void declare_cuda_funcs(nb::module_& m)
         nb::arg("A"), nb::arg("bcs0"), nb::arg("bcs1"), "Assemble matrix on GPU."
   );
 
+  // TODO: replace this function with PETSc API call
+  m.def("zero_vector_entries",
+	[](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
+	   dolfinx::la::CUDAVector& cuda_b)
+	{
+          assembler.zero_vector_entries(cuda_context, cuda_b);
+	},
+	nb::arg("context"), nb::arg("assembler"), nb::arg("b"),
+	"Zero vector entries"
+  );
+
   m.def("assemble_vector_on_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
            dolfinx::fem::CUDAForm<T,U>& cuda_form,
@@ -255,7 +286,6 @@ void declare_cuda_funcs(nb::module_& m)
           std::shared_ptr<const dolfinx::fem::CUDADofMap> cuda_dofmap0 =
             cuda_form.dofmap(0);
           
-          assembler.zero_vector_entries(cuda_context, cuda_b);
           assembler.assemble_vector(
              cuda_context, cuda_mesh, *cuda_dofmap0,
              cuda_form.integrals(), cuda_form.constants(),

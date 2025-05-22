@@ -8,6 +8,7 @@
 
 #include <cudolfinx/common/CUDA.h>
 #include <cuda.h>
+#include <map>
 
 namespace dolfinx {
 namespace fem {
@@ -24,10 +25,15 @@ public:
   /// Create a dofmap
   ///
   /// @param[in] dofmap The dofmap to copy to device memory
-  CUDADofMap(const dolfinx::fem::DofMap& dofmap);
+  CUDADofMap(const dolfinx::fem::DofMap& dofmap, std::map<std::int32_t, std::int32_t>* restriction);
 
-  /// Alternate constructor
+  // constructors without restriction
   CUDADofMap(const dolfinx::fem::DofMap* dofmap);
+
+  CUDADofMap(const dolfinx::fem::DofMap& dofmap);
+   
+  /// Alternate constructor
+  CUDADofMap(const dolfinx::fem::DofMap* dofmap, std::map<std::int32_t, std::int32_t>* restriction);
 
   /// Destructor
   ~CUDADofMap();
@@ -47,6 +53,9 @@ public:
   /// Move assignment operator
   /// @param[in] dofmap Another CUDADofMap object
   CUDADofMap& operator=(CUDADofMap&& dofmap);
+
+  /// Update the dofmap on the device, possibly with a new restriction
+  void update(std::map<std::int32_t, std::int32_t>* restriction);
 
   /// Get the underlying dofmap on the host
   const dolfinx::fem::DofMap* dofmap() const { return _dofmap; }
@@ -85,6 +94,9 @@ private:
 
   /// The number of degrees of freedom in each cell
   int32_t _num_dofs_per_cell;
+
+  /// The block size
+  int32_t _block_size;
 
   /// The degrees of freedom of each cell
   CUdeviceptr _ddofs_per_cell;
