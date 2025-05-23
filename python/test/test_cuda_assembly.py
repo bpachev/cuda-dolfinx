@@ -12,6 +12,7 @@ from dolfinx.fem import petsc
 import ufl
 import numpy as np
 import cudolfinx as cufem
+from cudolfinx.form import BlockCUDAForm
 from basix.ufl import element, mixed_element
 
 """
@@ -175,5 +176,30 @@ def test_lifting():
     compare_vecs(vec_fe, vec_cuda.vector)
     fe.apply_lifting(vec_fe.array, [a], [ufl_forms['bcs']])
     asm.apply_lifting(vec_cuda, [cuda_a], [ufl_forms['bcs']])
+    compare_vecs(vec_fe, vec_cuda.vector)
+
+def test_block_assembly():
+    """Test that basic block assembly works properly."""
+
+    domain = make_test_domain()
+    V1 = fe.functionspace(domain, ("P", 1))
+    V2 = fe.functionspace(domain, ("P", 1))
+    p1, p2 = ufl.TestFunction(V1), ufl.TestFunction(V2)
+
+    u1, u2 = fe.Function(V1), fe.Function(V2)
+    u1.interpolate(lambda x: x[0]**2 + x[1]**3)
+    u2.interpolate(lambda x: 1 + x[0] + x[1]**2)
+    b1 = ufl.dot(ufl.grad(u1), ufl.grad(p1)) * ufl.dx
+    b2 = ufl.dot(ufl.grad(u2), ufl.grad(p2)) * ufl.dx
+
+    asm = cufem.CUDAAssembler()
+    cuda_L = cufem.form([b1,b2])
+    
+    vec_cuda = asm.create_vector_block(cuda_L)
+    asm.assemble_vector_block(cuda_L, vec_cuda)
+
+    vec_fe = fe.petsc.create_vector_block(cuda_L.dolfinx_forms)
+    # TODO - update this when switching to DOLFINx v0.10.0
+    fe.petsc.assemble_vector_block(vec_fe, cuda_L.dolfinx_forms, [[None], [None]])
     compare_vecs(vec_fe, vec_cuda.vector)
 

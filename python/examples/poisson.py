@@ -79,6 +79,7 @@ def main(res, cuda=True, degree=1, dim=3):
         device_bcs = asm.pack_bcs([bc])
     else:
         a = fe.form(a, jit_options = {"cffi_extra_compile_args":["-O3", "-mcpu=neoverse-v2"]})
+        L = fe.form(L, jit_options = {"cffi_extra_compile_args":["-O3", "-mcpu=neoverse-v2"]})
         A = fe_petsc.create_matrix(a)
         b = fe_petsc.create_vector(L)
     start = time.time()

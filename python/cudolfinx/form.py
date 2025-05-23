@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+import collections
 from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp, jit
 from dolfinx import fem as fe
@@ -120,7 +121,7 @@ class BlockCUDAForm:
                 local_size = len(restriction_inds) 
             else:
                 restriction_inds = np.arange(local_size, dtype=np.int32)
-            target_inds = offset + restriction_inds
+            target_inds = offset + np.arange(local_size, dtype=np.int32) 
             offset += local_size
             offsets.append(offset)
             form.cuda_form.set_restriction([restriction_inds], [target_inds])
@@ -157,15 +158,28 @@ class BlockCUDAForm:
         return self._offsets[-1]
 
 
-def form(form: ufl.Form, **kwargs):
-    """Create a CUDAForm from a ufl form
-    """
+def form(
+    form: typing.Union[ufl.Form, typing.Iterable[ufl.Form]],
+    restriction: typing.Optional[typing.Iterable[np.typing.NDArray[np.int32]]] = None,
+    **kwargs):
+    """Create a CUDAForm from a ufl form."""
 
-    if not isinstance(form, ufl.Form):
-        raise TypeError("Expected form to be a ufl.Form, got type '{type(form)}'!")
+    def _create_form(form):
+        """Recursively convert ufl.Forms to CUDAForm."""
 
-    dolfinx_form = fe.form(form, **kwargs)
-    return CUDAForm(dolfinx_form)
+        if isinstance(form, ufl.Form):
+            dolfinx_form = fe.form(form, **kwargs)
+            return CUDAForm(dolfinx_form)
+        elif isinstance(form, collections.abc.Iterable):
+            return list(map(lambda sub_form: _create_form(sub_form), form))
+        else:
+            raise TypeError("Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!")
+
+    cuda_form = _create_form(form)
+    # TODO: properly handle restriction for a single form
+    if isinstance(form, collections.abc.Iterable):
+        return BlockCUDAForm(cuda_form, restriction)
+    else: return cuda_form
 
 def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64], ctx: _cucpp.fem.CUDAContext):
   """Create device-side mesh data
