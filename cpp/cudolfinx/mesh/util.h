@@ -112,8 +112,14 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
 /// Return indices of ghost (non-owned) exterior facets
 std::vector<std::int32_t> ghost_exterior_facet_indices(std::shared_ptr<Topology> topology);
 
-/// Compute ghost entities given the integral type
+/// Compute ghost entities given the integral type, with no restrictions
 std::vector<std::int32_t> ghost_entities(
+                fem::IntegralType integral_type,
+                std::shared_ptr<Topology> topology);
+
+/// Compute only active ghost entities for a given integral type
+std::vector<std::int32_t> active_ghost_entities(
+                std::span<const std::int32_t> active_local_entities,
                 fem::IntegralType integral_type,
                 std::shared_ptr<Topology> topology);
 

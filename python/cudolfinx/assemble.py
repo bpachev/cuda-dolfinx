@@ -198,7 +198,7 @@ class CUDAAssembler:
     if not isinstance(b, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got type '{type(b)}')")
 
-    petsc_vec = PETSc.Vec().createCUDAWithArrays(cpuarray=np.zeros(b.local_size), size=b.local_size)
+    petsc_vec = PETSc.Vec().createCUDAWithArrays(cpuarray=np.zeros(b.local_size), size=(b.local_size, b.global_size))
     return CUDAVector(self._ctx, petsc_vec)
 
   def pack_bcs(self, bcs: list[DirichletBC]) -> CUDADirichletBC:

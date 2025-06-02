@@ -776,8 +776,7 @@ public:
     // Allocate device-side storage for mesh entities
     _mesh_entities = form.domain(_integral_type, i);
     _num_mesh_entities = _mesh_entities.size();
-    // TODO properly support ghost entities for subdomain integrals
-    _mesh_ghost_entities = mesh::ghost_entities(_integral_type, form.mesh()->topology_mutable());
+    _mesh_ghost_entities = mesh::active_ghost_entities(_mesh_entities, _integral_type, form.mesh()->topology_mutable());
     _num_mesh_ghost_entities = _mesh_ghost_entities.size();
     
     if (_num_mesh_entities + _num_mesh_ghost_entities > 0) {

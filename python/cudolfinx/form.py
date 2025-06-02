@@ -118,15 +118,20 @@ class BlockCUDAForm:
             local_size = dofmap.index_map.size_local 
             if self._restrictions is not None:
                 restriction_inds = self._restrictions[i]
+                # ignore ghosts
+                restriction_inds = restriction_inds[restriction_inds < local_size]
                 local_size = len(restriction_inds) 
             else:
                 restriction_inds = np.arange(local_size, dtype=np.int32)
             target_inds = offset + np.arange(local_size, dtype=np.int32) 
-            offset += local_size
+            offset += local_size * dofmap.index_map_bs
             offsets.append(offset)
             form.cuda_form.set_restriction([restriction_inds], [target_inds])
 
         self._offsets = offsets
+        comm = self._forms[0].dolfinx_form.mesh.comm
+        self._global_size = comm.allreduce(offsets[-1])
+
 
     def _init_matrix(self):
         """Initialize matrix form."""
@@ -157,6 +162,11 @@ class BlockCUDAForm:
 
         return self._offsets[-1]
 
+    @property
+    def global_size(self):
+        """Return size of global vector."""
+
+        return self._global_size
 
 def form(
     form: typing.Union[ufl.Form, typing.Iterable[ufl.Form]],
