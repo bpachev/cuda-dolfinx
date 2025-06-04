@@ -104,7 +104,6 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
   int rank = dolfinx::MPI::rank(comm);
   int tdim = topology->dim();
   int ent_dim = (integral_type == fem::IntegralType::cell) ? tdim : tdim-1;
-  if (rank == 0) std::cout << "entering active ghost entities" << std::endl;
   // Step 1: determine the active entities which are ghosted on other processes 
   std::map<int, std::vector<std::int32_t>> dest_entities;
   auto imap = topology->index_map(ent_dim);
@@ -125,7 +124,6 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
       }
       break;
     case fem::IntegralType::interior_facet:
-      if (rank == 0) std::cout << "interior facet" << std::endl;
     case fem::IntegralType::exterior_facet: {
       auto c_to_f = topology->connectivity(tdim, tdim-1);
       if (!c_to_f) {
@@ -168,24 +166,14 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
   // Create neighbor communicator
   MPI_Comm neigh_comm;
   int ierr = MPI_Dist_graph_create_adjacent(
-      comm, dest.size(), dest.data(), MPI_UNWEIGHTED, src.size(),
-      src.data(), MPI_UNWEIGHTED, MPI_INFO_NULL, false, &neigh_comm);
+      comm, src.size(), src.data(), MPI_UNWEIGHTED, dest.size(),
+      dest.data(), MPI_UNWEIGHTED, MPI_INFO_NULL, false, &neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
-  std::cout << "rank " << rank << " Created neighbor graph" << std::endl;
   // Share lengths of indices to be sent to each rank
   std::vector<int> recv_sizes(src.size(), 0);
-  std::cout << " rank " << rank << " send_sizes " << send_sizes.size() << " recv_sizes " << recv_sizes.size() << std::endl;
-  std::cout << " rank " << rank << " src size " << src.size() << " dest size " << dest.size() << std::endl;
-  if (send_sizes.size()) std::cout << "rank " << rank << " send_sizes[0] " << send_sizes[0] << std::endl;
-  if (src.size())  std::cout << " rank " << rank << " src[0] " << src[0] << std::endl;
-  if (dest.size()) std::cout << " rank " << rank << " dest[0] " << dest[0] << std::endl;
-  send_sizes.reserve(1);
-  recv_sizes.reserve(1);
   ierr = MPI_Neighbor_alltoall(send_sizes.data(), 1, MPI_INT,
                                recv_sizes.data(), 1, MPI_INT, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
-  if(src.size()) std::cout << "rank " << rank << " recv_sizes[0] " << recv_sizes[0] << std::endl;
-  std::cout << "rank " << rank << " Sent sizes" << std::endl;
   // Prepare displacement arrays
   std::vector<int> send_disp(dest.size() + 1, 0);
   std::vector<int> recv_disp(src.size() + 1, 0);
@@ -193,20 +181,15 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
                    std::next(send_disp.begin()));
   std::partial_sum(recv_sizes.begin(), recv_sizes.end(),
                    std::next(recv_disp.begin()));
-  std::cout << "rank " << rank << " size of recv buf " << recv_disp.back() << std::endl;
   // next steps - construct recv buffers and perform communication
   std::size_t recv_buf_size = recv_disp.back();
   // make sure that the buffer pointers actually get allocated
   std::vector<std::int64_t> indices_recv_buffer(recv_buf_size);
-  indices_send_buffer.reserve(1);
-  indices_recv_buffer.reserve(1);
   ierr = MPI_Neighbor_alltoallv(indices_send_buffer.data(), send_sizes.data(),
                                 send_disp.data(), MPI_INT64_T,
                                 indices_recv_buffer.data(), recv_sizes.data(),
                                 recv_disp.data(), MPI_INT64_T, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
-  if (rank == 0) std::cout << "Shared entities" << std::endl;
-  // no need to continue further here
   // Step 3: Convert from global to local indices and do entity computation
   std::vector<std::int32_t> local_recv_indices(indices_recv_buffer.size());
   imap->global_to_local(indices_recv_buffer, local_recv_indices);

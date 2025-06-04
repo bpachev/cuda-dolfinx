@@ -261,8 +261,8 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
   // Create neighbor communicator
   MPI_Comm neigh_comm;
   int ierr = MPI_Dist_graph_create_adjacent(
-      comm, dest.size(), dest.data(), MPI_UNWEIGHTED, src.size(),
-      src.data(), MPI_UNWEIGHTED, MPI_INFO_NULL, false, &neigh_comm);
+      comm, src.size(), src.data(), MPI_UNWEIGHTED, dest.size(),
+      dest.data(), MPI_UNWEIGHTED, MPI_INFO_NULL, false, &neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
   // Share lengths of indices to be sent to each rank
   std::vector<int> recv_sizes(src.size(), 0);
