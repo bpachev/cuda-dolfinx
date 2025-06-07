@@ -131,16 +131,16 @@ public:
     _constants.update_constant_values(); 
   }
 
-  void set_restriction(std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> restriction)
+  void set_restriction(std::vector<std::int32_t> offsets, std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> restriction)
   {
     if (restriction.size() != _form->function_spaces().size()) {
       throw std::runtime_error("Number of restrictions must equal arity of form (1 for vector, 2 for matrix)!");
     }
-
+    _restriction = restriction;
     if (_restricted_dofmaps.size()) {
       // need to update the restriction
       for (int i = 0; i < _restricted_dofmaps.size(); i++) {
-        _restricted_dofmaps[i]->update(restriction[i].get());
+        _restricted_dofmaps[i]->update(offsets[i], restriction[i].get());
       } 
     }
     else {
@@ -148,6 +148,7 @@ public:
         _restricted_dofmaps.push_back(
           std::make_shared<CUDADofMap>(
 	    _form->function_spaces()[i]->dofmap().get(),
+	    offsets[i],
 	    restriction[i].get()
 	  )
 	);
@@ -155,11 +156,29 @@ public:
     }
   }
 
+  const std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> get_restriction()
+  {
+    return _restriction;
+  }
+
+  std::shared_ptr<dolfinx::common::IndexMap> restriction_index_map(size_t i) {
+    std::vector<std::int32_t> restricted_inds;
+    for (auto const& pair: *_restriction[i]) restricted_inds.push_back(pair.first);
+    auto [imap, inds] = dolfinx::common::create_sub_index_map(
+        *_form->function_spaces()[0]->dofmap()->index_map,
+        restricted_inds,
+        dolfinx::common::IndexMapOrder::preserve, false
+    ); 
+    return std::make_shared<dolfinx::common::IndexMap>(std::move(imap));
+  }
+
 private:
   // Cache of CUDADofMaps
   common::CUDAStore<DofMap, CUDADofMap> _dofmap_store;
   // Restricted dofmaps
   std::vector<std::shared_ptr<CUDADofMap>> _restricted_dofmaps;
+  // Restriction
+  std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> _restriction;
   // Form coefficients
   CUDAFormCoefficients<T, U> _coefficients;
   // Form Constants

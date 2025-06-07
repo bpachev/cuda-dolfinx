@@ -184,6 +184,16 @@ class CUDAAssembler:
     petsc_mat = _cucpp.fem.petsc.create_cuda_matrix(a.dolfinx_form._cpp_object)
     return CUDAMatrix(self._ctx, petsc_mat)
 
+  def create_matrix_block(self, a: BlockCUDAForm) -> CUDAMatrix:
+    """Create a block matrix from a block form"""
+
+    if not isinstance(a, BlockCUDAForm):
+      raise TypeError(f"Expected BlockCUDAForm, got type '{type(a)}'")
+
+    _cpp_forms = [[cuda_form._cpp_object for cuda_form in row] for row in a.forms] 
+    petc_mat = _cucpp.fem.petsc.create_cuda_block_matrix(_cpp_forms)
+    return CUDAMatrix(self._ctx, petsc_mat)
+
   def create_vector(self, b: CUDAForm) -> CUDAVector:
     """Create a CUDAVector from a given form
     """

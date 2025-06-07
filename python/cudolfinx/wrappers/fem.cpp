@@ -100,23 +100,20 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
              }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"))
       .def(
           "set_restriction",
-	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<std::vector<int32_t>>& restricted_inds,
-             std::vector<std::vector<int32_t>>& target_inds)
+	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<int32_t> offsets,
+	     std::vector<std::vector<int32_t>>& restricted_inds)
 	     {
-	       if (restricted_inds.size() != target_inds.size()) {
-                 throw std::runtime_error("Length of restricted inds and target inds lists must match!");
+	       if (restricted_inds.size() != offsets.size()) {
+                 throw std::runtime_error("Length of restricted inds and offset lists must match!");
                }
                std::vector<std::shared_ptr<std::map<::int32_t, std::int32_t>>> restrictions;
                for (int i = 0; i < restricted_inds.size(); i++) {
                  auto m = std::make_shared<std::map<std::int32_t, std::int32_t>>();
-                 if (restricted_inds[i].size() != target_inds[i].size()) {
-                   throw std::runtime_error("Length of restricted ind array and target ind array must match!");
-                 }
-                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = target_inds[i][j];
+                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = j;
                  restrictions.push_back(m);
                }
-               cf.set_restriction(restrictions);
-	     }, nb::arg("restricted_inds"), nb::arg("target_inds"))
+               cf.set_restriction(offsets, restrictions);
+	     }, nb::arg("offsets"), nb::arg("restricted_inds"))
       .def_prop_ro("compiled", &dolfinx::fem::CUDAForm<T,U>::compiled)
       .def_prop_ro("restricted", &dolfinx::fem::CUDAForm<T,U>::restricted)
       .def("to_device", &dolfinx::fem::CUDAForm<T,U>::to_device);

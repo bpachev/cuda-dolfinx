@@ -118,25 +118,57 @@ class BlockCUDAForm:
             local_size = dofmap.index_map.size_local 
             if self._restrictions is not None:
                 restriction_inds = self._restrictions[i]
-                # ignore ghosts
-                restriction_inds = restriction_inds[restriction_inds < local_size]
-                local_size = len(restriction_inds) 
+                local_size = len(restriction_inds[restriction_inds < local_size])
             else:
                 restriction_inds = np.arange(local_size, dtype=np.int32)
-            target_inds = offset + np.arange(local_size, dtype=np.int32) 
+            form.cuda_form.set_restriction([offset], [restriction_inds])
             offset += local_size * dofmap.index_map_bs
             offsets.append(offset)
-            form.cuda_form.set_restriction([restriction_inds], [target_inds])
 
         self._offsets = offsets
         comm = self._forms[0].dolfinx_form.mesh.comm
         self._global_size = comm.allreduce(offsets[-1])
 
-
     def _init_matrix(self):
         """Initialize matrix form."""
 
-        raise NotImplementedError("Block matrix assembly is not yet implemented!")
+        row_offset = col_offset = 0
+        row_offsets = []
+        col_offsets = []
+        row_restrictions = []
+        col_restrictions = []
+        # iterate over the first form in each row
+        for i, row in enumerate(self._forms):
+            dofmap = row[0].function_spaces[0].dofmap
+            local_size = dofmap.index_map.size_local
+            if self._restrictions is not None:
+                restriction_inds = self._restrictions[0][i]
+                local_size = len(restriction_inds[restriction_inds<local_size])
+            else:
+                restriction_inds = np.arange(local_size, dtype=np.int32)
+            row_restrictions.append(restriction_inds)
+            row_offset += dofmap.index_map_bs * local_size
+            row_offsets.append(row_offset)
+        # iterate over the first row of forms
+        for i, form in enumerate(self._forms[0]):
+            dofmap = form.function_spaces[1].dofmap
+            local_size = dofmap.index_map.size_local
+            if self._restrictions is not None:
+                restriction_inds = self._restrictions[1][i]
+                local_size = len(restriction_inds[restriction_inds<local_size])
+            else:
+                restriction_inds = np.arange(local_size, dtype=np.int32)
+            col_restrictions.append(restriction_inds) 
+            col_offset += dofmap.index_map_bs * local_size
+            col_offsets.append(col_offset)
+
+        # restrict forms appropriately
+        for i, row in enumerate(self._forms):
+            for j, form in enumerate(row):
+                form.cuda_form.set_restriction(
+                        [row_offsets[i], col_offsets[j]],
+                        [row_restrictions[i], col_restrictions[j]]
+                        )
 
     @property
     def forms(self):

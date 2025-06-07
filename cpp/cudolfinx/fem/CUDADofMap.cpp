@@ -27,25 +27,25 @@ CUDADofMap::CUDADofMap()
 
 CUDADofMap::CUDADofMap(
   const dolfinx::fem::DofMap* dofmap)
-  : CUDADofMap::CUDADofMap(*dofmap, nullptr)
+  : CUDADofMap::CUDADofMap(*dofmap, 0, nullptr)
 {
 }
 
 CUDADofMap::CUDADofMap(
-  const dolfinx::fem::DofMap* dofmap, std::map<std::int32_t, std::int32_t>* restriction)
-  : CUDADofMap::CUDADofMap(*dofmap, restriction)
+  const dolfinx::fem::DofMap* dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
+  : CUDADofMap::CUDADofMap(*dofmap, offset, restriction)
 {
 }
 
 CUDADofMap::CUDADofMap(
   const dolfinx::fem::DofMap& dofmap)
-  : CUDADofMap::CUDADofMap(dofmap, nullptr)
+  : CUDADofMap::CUDADofMap(dofmap, 0, nullptr)
 {
 }
 
 //-----------------------------------------------------------------------------
 CUDADofMap::CUDADofMap(
-  const dolfinx::fem::DofMap& dofmap, std::map<std::int32_t, std::int32_t>* restriction)
+  const dolfinx::fem::DofMap& dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
   : _dofmap(&dofmap)
   , _num_dofs()
   , _num_cells()
@@ -85,7 +85,7 @@ CUDADofMap::CUDADofMap(
         " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
     }
   }
-  update(restriction);
+  update(offset, restriction);
 
   // cells_per_dof_ptr and cells_per_dof are only used for
   // lookup table computations, which currently aren't in use
@@ -190,7 +190,7 @@ CUDADofMap::CUDADofMap(
   }*/
 }
 //-----------------------------------------------------------------------------
-void CUDADofMap::update(std::map<std::int32_t, std::int32_t>* restriction)
+void CUDADofMap::update(std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
 {
   std::vector<std::int32_t> unrolled_dofs;
   const std::int32_t* dofs_per_cell, *dofs_orig;
@@ -204,7 +204,7 @@ void CUDADofMap::update(std::map<std::int32_t, std::int32_t>* restriction)
       if (restriction->find(dof) != restriction->end()) {
         std::int32_t mapped_dof = (*restriction)[dof];
         for (int j = 0; j < _block_size; j++)
-          unrolled_dofs[i*_block_size + j] = mapped_dof*_block_size + j;
+          unrolled_dofs[i*_block_size + j] = offset + mapped_dof*_block_size + j;
       }
       else {
         for (int j = 0; j < _block_size; j++)
@@ -214,12 +214,20 @@ void CUDADofMap::update(std::map<std::int32_t, std::int32_t>* restriction)
     dofs_per_cell = unrolled_dofs.data();
   }
   else if (_block_size == 1) {
-    dofs_per_cell = dofs_orig;
+    if (offset) {
+      unrolled_dofs.resize(_num_dofs);
+      for (std::size_t i = 0; i < dofs.size(); i++)
+        unrolled_dofs[i] = dofs_orig[i] + offset;
+      dofs_per_cell = unrolled_dofs.data();
+    }
+    else {
+      dofs_per_cell = dofs_orig;
+    }
   }
   else {
     unrolled_dofs.resize(_num_dofs);
     for (std::size_t i = 0; i < _num_dofs; i++)
-      unrolled_dofs[i] = _block_size*dofs_orig[i/_block_size] + i%_block_size;
+      unrolled_dofs[i] = offset + _block_size*dofs_orig[i/_block_size] + i%_block_size;
 
     dofs_per_cell = unrolled_dofs.data();
   }
