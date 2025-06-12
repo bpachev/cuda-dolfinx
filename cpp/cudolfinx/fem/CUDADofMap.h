@@ -25,7 +25,12 @@ public:
   /// Create a dofmap
   ///
   /// @param[in] dofmap The dofmap to copy to device memory
-  CUDADofMap(const dolfinx::fem::DofMap& dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction);
+  CUDADofMap(
+    const dolfinx::fem::DofMap& dofmap,
+    std::int32_t offset,
+    std::int32_t ghost_offset,
+    std::map<std::int32_t, std::int32_t>* restriction
+  );
 
   // constructors without restriction
   CUDADofMap(const dolfinx::fem::DofMap* dofmap);
@@ -33,7 +38,12 @@ public:
   CUDADofMap(const dolfinx::fem::DofMap& dofmap);
    
   /// Alternate constructor
-  CUDADofMap(const dolfinx::fem::DofMap* dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction);
+  CUDADofMap(
+    const dolfinx::fem::DofMap* dofmap,
+    std::int32_t offset,
+    std::int32_t ghost_offset,
+    std::map<std::int32_t, std::int32_t>* restriction
+  );
 
   /// Destructor
   ~CUDADofMap();
@@ -55,7 +65,7 @@ public:
   CUDADofMap& operator=(CUDADofMap&& dofmap);
 
   /// Update the dofmap on the device, possibly with a new restriction
-  void update(std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction);
+  void update(std::int32_t offset, std::int32_t ghost_offset, std::map<std::int32_t, std::int32_t>* restriction);
 
   /// Get the underlying dofmap on the host
   const dolfinx::fem::DofMap* dofmap() const { return _dofmap; }

@@ -82,7 +82,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   // Change matrix type to CUDA
   ierr = MatSetType(A, MATMPIAIJCUSPARSE);
   if (ierr != 0)
-    petsc::error(ierr, __FILE__, "MatSetFromOptions");
+    petsc::error(ierr, __FILE__, "MatSetType");
 
   // Set block sizes
   ierr = MatSetBlockSizes(A, 1, 1);
@@ -148,7 +148,6 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   ierr = MatSetOption(A, MAT_KEEP_NONZERO_PATTERN, PETSC_TRUE);
   if (ierr != 0)
     petsc::error(ierr, __FILE__, "MatSetOption");
-
   return A;
 }
 

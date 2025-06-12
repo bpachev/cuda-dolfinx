@@ -37,7 +37,7 @@ Mat create_cuda_matrix(const Form<PetscScalar, T>& a)
 }
 
 template<std::floating_point T>
-Mat create_cuda_block_matrix(std::vector<std::vector<std::shared_ptr<CUDAForm<PetscScalar,T>>>>& forms)
+Mat create_cuda_matrix_block(std::vector<std::vector<std::shared_ptr<CUDAForm<PetscScalar,T>>>>& forms)
 {
   int rows = forms.size();
   int cols = (rows) ? forms[0].size() : 0;
@@ -50,7 +50,6 @@ Mat create_cuda_block_matrix(std::vector<std::vector<std::shared_ptr<CUDAForm<Pe
       maps;
   std::vector<std::shared_ptr<dolfinx::common::IndexMap>> restricted_row_maps(rows, nullptr);
   std::vector<std::shared_ptr<dolfinx::common::IndexMap>> restricted_col_maps(cols, nullptr);
-  
   for (int row = 0; row < rows; row++) {
     for (int col = 0; col < cols; col++) {
       if (auto cuda_form = forms[row][col]; cuda_form) {
@@ -81,8 +80,6 @@ Mat create_cuda_block_matrix(std::vector<std::vector<std::shared_ptr<CUDAForm<Pe
   std::array<std::vector<int>, 2> bs_dofs;
   std::array<std::vector<std::shared_ptr<dolfinx::common::IndexMap>>, 2> restricted_maps
       = {restricted_row_maps, restricted_col_maps};
-  /// hmmm - I think it probably won't work if we pass the unrestricted
-  /// index maps to the sparsity pattern constructor.  . .
   for (std::size_t d = 0; d < 2; ++d)
   {
     for (std::size_t i = 0; i < V[d].size(); i++)
@@ -106,7 +103,6 @@ Mat create_cuda_block_matrix(std::vector<std::vector<std::shared_ptr<CUDAForm<Pe
 
   la::SparsityPattern pattern(mesh->comm(), p, maps, bs_dofs);
   pattern.finalize();
-  // more work will be needed here to get the proper local-to-global index maps
   return la::petsc::create_cuda_matrix(mesh->comm(), pattern); 
 }
 

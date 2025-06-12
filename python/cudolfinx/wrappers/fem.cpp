@@ -77,7 +77,9 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
           "__init__",
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
               dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form,
-	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources)
+	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources,
+	      std::vector<int>& integral_tensor_indices
+	      )
              {
 	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
@@ -85,10 +87,12 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                  &form,
 		 p,
 		 tabulate_tensor_names,
-		 tabulate_tensor_sources
+		 tabulate_tensor_sources,
+		 integral_tensor_indices
                );
              }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"),
-	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources")
+	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources"),
+	     nb::arg("integral_tensor_indices")
 	     )
       .def(
           "compile",
@@ -101,6 +105,7 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
       .def(
           "set_restriction",
 	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<int32_t> offsets,
+       std::vector<int32_t> ghost_offsets,
 	     std::vector<std::vector<int32_t>>& restricted_inds)
 	     {
 	       if (restricted_inds.size() != offsets.size()) {
@@ -112,8 +117,8 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                  for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = j;
                  restrictions.push_back(m);
                }
-               cf.set_restriction(offsets, restrictions);
-	     }, nb::arg("offsets"), nb::arg("restricted_inds"))
+               cf.set_restriction(offsets, ghost_offsets, restrictions);
+	     }, nb::arg("offsets"), nb::arg("ghost_offsets"), nb::arg("restricted_inds"))
       .def_prop_ro("compiled", &dolfinx::fem::CUDAForm<T,U>::compiled)
       .def_prop_ro("restricted", &dolfinx::fem::CUDAForm<T,U>::restricted)
       .def("to_device", &dolfinx::fem::CUDAForm<T,U>::to_device);

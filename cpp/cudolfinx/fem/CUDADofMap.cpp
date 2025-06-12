@@ -27,25 +27,31 @@ CUDADofMap::CUDADofMap()
 
 CUDADofMap::CUDADofMap(
   const dolfinx::fem::DofMap* dofmap)
-  : CUDADofMap::CUDADofMap(*dofmap, 0, nullptr)
+  : CUDADofMap::CUDADofMap(*dofmap, 0, 0, nullptr)
 {
 }
 
 CUDADofMap::CUDADofMap(
-  const dolfinx::fem::DofMap* dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
-  : CUDADofMap::CUDADofMap(*dofmap, offset, restriction)
+  const dolfinx::fem::DofMap* dofmap,
+  std::int32_t offset,
+  std::int32_t ghost_offset,
+  std::map<std::int32_t, std::int32_t>* restriction)
+  : CUDADofMap::CUDADofMap(*dofmap, offset, ghost_offset, restriction)
 {
 }
 
 CUDADofMap::CUDADofMap(
   const dolfinx::fem::DofMap& dofmap)
-  : CUDADofMap::CUDADofMap(dofmap, 0, nullptr)
+  : CUDADofMap::CUDADofMap(dofmap, 0, 0, nullptr)
 {
 }
 
 //-----------------------------------------------------------------------------
 CUDADofMap::CUDADofMap(
-  const dolfinx::fem::DofMap& dofmap, std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
+  const dolfinx::fem::DofMap& dofmap,
+  std::int32_t offset,
+  std::int32_t ghost_offset,
+  std::map<std::int32_t, std::int32_t>* restriction)
   : _dofmap(&dofmap)
   , _num_dofs()
   , _num_cells()
@@ -85,7 +91,7 @@ CUDADofMap::CUDADofMap(
         " at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
     }
   }
-  update(offset, restriction);
+  update(offset, ghost_offset, restriction);
 
   // cells_per_dof_ptr and cells_per_dof are only used for
   // lookup table computations, which currently aren't in use
@@ -190,52 +196,43 @@ CUDADofMap::CUDADofMap(
   }*/
 }
 //-----------------------------------------------------------------------------
-void CUDADofMap::update(std::int32_t offset, std::map<std::int32_t, std::int32_t>* restriction)
+void CUDADofMap::update(
+  std::int32_t offset,
+  std::int32_t ghost_offset,
+  std::map<std::int32_t,  std::int32_t>* restriction)
 {
   std::vector<std::int32_t> unrolled_dofs;
   const std::int32_t* dofs_per_cell, *dofs_orig;
   auto dofs = _dofmap->map();
   dofs_orig = dofs.data_handle();
+  std::size_t local_size = _dofmap->index_map->size_local();
 
-  if (restriction) {
-    unrolled_dofs.resize(_num_dofs);
-    for (std::size_t i = 0; i < dofs.size(); i++) {
-      const std::int32_t dof = dofs_orig[i];
+  unrolled_dofs.resize(_num_dofs);
+  // subtract out local size to convert ghost dof to index in ghosts list
+  ghost_offset = (ghost_offset) ? ghost_offset - local_size*_block_size : 0;
+
+  for (std::size_t i = 0; i < dofs.size(); i++) {
+    std::int32_t dof = dofs_orig[i];
+    std::int32_t offset_for_dof = (dof < local_size) ? offset : ghost_offset;
+    if (restriction) {
       if (restriction->find(dof) != restriction->end()) {
-        std::int32_t mapped_dof = (*restriction)[dof];
-        for (int j = 0; j < _block_size; j++)
-          unrolled_dofs[i*_block_size + j] = offset + mapped_dof*_block_size + j;
+        dof = (*restriction)[dof];
       }
       else {
         for (int j = 0; j < _block_size; j++)
           unrolled_dofs[i*_block_size + j] = -1; // we should not be using this degree of freedom
+        continue;
       }
     }
-    dofs_per_cell = unrolled_dofs.data();
-  }
-  else if (_block_size == 1) {
-    if (offset) {
-      unrolled_dofs.resize(_num_dofs);
-      for (std::size_t i = 0; i < dofs.size(); i++)
-        unrolled_dofs[i] = dofs_orig[i] + offset;
-      dofs_per_cell = unrolled_dofs.data();
-    }
-    else {
-      dofs_per_cell = dofs_orig;
-    }
-  }
-  else {
-    unrolled_dofs.resize(_num_dofs);
-    for (std::size_t i = 0; i < _num_dofs; i++)
-      unrolled_dofs[i] = offset + _block_size*dofs_orig[i/_block_size] + i%_block_size;
 
-    dofs_per_cell = unrolled_dofs.data();
+    for (int j = 0; j < _block_size; j++)
+      unrolled_dofs[i*_block_size + j] = offset_for_dof + dof*_block_size + j;
   }
 
   // Copy cell degrees of freedom to device
   if (_num_cells > 0 && _num_dofs_per_cell > 0) {
     size_t ddofs_per_cell_size = _num_dofs * sizeof(int32_t);
-    CUDA::safeMemcpyHtoD(_ddofs_per_cell, dofs_per_cell, ddofs_per_cell_size);
+    CUDA::safeMemcpyHtoD(_ddofs_per_cell, unrolled_dofs.data(), ddofs_per_cell_size);
   }
 
 }

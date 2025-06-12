@@ -52,8 +52,10 @@ def get_tabulate_tensor_sources(form: fem.Form):
                         part.strip().split("_")[-1] for part in arr.split(",")
                     ]
 
-    id_order = {integral_id: i for i, integral_id in enumerate(ordered_integral_ids)}
-    return sorted(tabulate_tensors, key=lambda tabulate: id_order[tabulate[0]])
+    # map ids to order of appearance in tensor list
+    id_order = {tabulate[0]: i for i, tabulate in enumerate(tabulate_tensors)}
+    integral_tensor_indices = [id_order[integral_id] for integral_id in ordered_integral_ids]
+    return tabulate_tensors, integral_tensor_indices
 
 cuda_tabulate_tensor_header = """
     #define alignas(x)
@@ -96,7 +98,7 @@ def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
     geom_type = scalar_type = _convert_dtype_to_str(form.dtype)
 
     res = []
-    sources = get_tabulate_tensor_sources(form)
+    sources, integral_tensor_indices = get_tabulate_tensor_sources(form)
     for id, body in sources:
         factory_name = "integral_" + id
         name = "tabulate_tensor_" + factory_name
@@ -108,5 +110,5 @@ def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
         wrapped_source = header + "{\n" + body + "}\n"
         res.append((name, wrapped_source))
 
-    return res
+    return res, integral_tensor_indices
 
