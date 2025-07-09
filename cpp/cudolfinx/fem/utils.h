@@ -29,7 +29,6 @@ dolfinx::la::SparsityPattern compute_restricted_sparsity_pattern(std::shared_ptr
   std::array<std::vector<std::int32_t>, 2> restricted_cell_dofs;
   std::array<std::vector<std::int32_t>, 2> restricted_cell_bounds;
   std::array<std::vector<std::int32_t>, 2> insertion_dofs;
-
   for (std::size_t d = 0; d < 2; d++) {
     auto cell_map = dofmaps[d]->map();
     int num_cells = cell_map.extent(0);
@@ -41,8 +40,8 @@ dolfinx::la::SparsityPattern compute_restricted_sparsity_pattern(std::shared_ptr
         if (restriction_map.find(dof) != restriction_map.end()) {
           restricted_cell_dofs[d].push_back(restriction_map.at(dof));
         }
-        restricted_cell_bounds[d].push_back(restricted_cell_dofs.size());
       }
+      restricted_cell_bounds[d].push_back(restricted_cell_dofs[d].size());
     }
   } 
 

@@ -238,6 +238,15 @@ void declare_cuda_funcs(nb::module_& m)
        nb::arg("context"), nb::arg("assembler"), nb::arg("cuda_form"), nb::arg("coefficients"),
        "Pack a given subset of form coefficients on device");
 
+  m.def("zero_matrix_entries",
+        [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
+           dolfinx::la::CUDAMatrix& cuda_A) {
+          
+          assembler.zero_matrix_entries(cuda_context, cuda_A);
+        }, nb::arg("context"), nb::arg("assembler"), nb::arg("A"),
+        "Zero matrix entries"
+  );
+
   m.def("assemble_matrix_on_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
            dolfinx::fem::CUDAForm<T,U>& cuda_form, dolfinx::mesh::CUDAMesh<U>& cuda_mesh,
@@ -253,15 +262,12 @@ void declare_cuda_funcs(nb::module_& m)
           /*assembler.compute_lookup_tables(
             cuda_context, *cuda_dofmap0, *cuda_dofmap1,
             cuda_bc0, cuda_bc1, cuda_a_form_integrals, cuda_A, false);*/
-          assembler.zero_matrix_entries(cuda_context, cuda_A);
           assembler.assemble_matrix(
             cuda_context, cuda_mesh, *cuda_dofmap0, *cuda_dofmap1,
             cuda_bc0, cuda_bc1, cuda_form.integrals(),
             cuda_form.constants(), cuda_form.coefficients(),
             cuda_A, false);
           assembler.set_diagonal(cuda_context, cuda_A, cuda_bc0);
-          cuda_A.apply(MAT_FINAL_ASSEMBLY);
- 
         },
         nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"),
         nb::arg("A"), nb::arg("bcs0"), nb::arg("bcs1"), "Assemble matrix on GPU."

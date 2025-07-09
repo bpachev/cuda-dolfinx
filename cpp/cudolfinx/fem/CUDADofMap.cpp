@@ -208,8 +208,6 @@ void CUDADofMap::update(
   std::size_t local_size = _dofmap->index_map->size_local();
 
   unrolled_dofs.resize(_num_dofs);
-  // subtract out local size to convert ghost dof to index in ghosts list
-  ghost_offset = (ghost_offset) ? ghost_offset - local_size*_block_size : 0;
 
   for (std::size_t i = 0; i < dofs.size(); i++) {
     std::int32_t dof = dofs_orig[i];

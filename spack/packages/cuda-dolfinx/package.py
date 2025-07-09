@@ -21,7 +21,7 @@ class CudaDolfinx(CMakePackage):
 
     depends_on("cxx", type="build")
 
-    depends_on("fenics-dolfinx@0.9", when="@0.9:")
+    depends_on("fenics-dolfinx@0.9+petsc+adios2", when="@0.9:")
     depends_on("py-fenics-dolfinx@0.9", when="@0.9:")
     depends_on("petsc+shared+mpi+cuda")
 

@@ -112,9 +112,10 @@ class BlockCUDAForm:
 
         offset = 0
         ghost_offset = 0
-        ghost_offsets = []
-        offsets = []
+        ghost_offsets = [ghost_offset]
+        offsets = [offset]
         restriction_inds_list = []
+        local_sizes = []
         for i, form in enumerate(forms):
             dofmap = form.function_spaces[0].dofmap
             local_size = dofmap.index_map.size_local
@@ -129,8 +130,13 @@ class BlockCUDAForm:
             ghost_offset += num_ghosts * dofmap.index_map_bs
             offsets.append(offset)
             ghost_offsets.append(ghost_offset)
+            local_sizes.append(local_size*dofmap.index_map_bs)
             restriction_inds_list.append(restriction_inds)
-        ghost_offsets = [offsets[-1] + ghost_offset for ghost_offset in ghost_offsets]
+        # create offsets that can be directly added to the local index of the ghost
+        # hence the need to subtract out the local size as the CUDADofMap doesn't know how many
+        # restricted dofs are acutally local
+        # TODO just reimplement RestrictedDofMap from multiphenicsx instead of all this dancing around
+        ghost_offsets = [offsets[-1] + ghost_offset - local_size for ghost_offset,local_size in zip(ghost_offsets, local_sizes)]
         return restriction_inds_list, offsets, ghost_offsets
         
 
