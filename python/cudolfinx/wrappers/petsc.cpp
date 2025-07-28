@@ -27,6 +27,9 @@ void petsc_fem_module(nb::module_& m)
   m.def("create_cuda_matrix", dolfinx::fem::petsc::create_cuda_matrix<PetscReal>,
         nb::rv_policy::take_ownership, nb::arg("a"),
         "Create a PETSc CUDA Mat for a bilinear form.");
+  m.def("create_cuda_matrix_block", dolfinx::fem::petsc::create_cuda_matrix_block<PetscReal>,
+        nb::rv_policy::take_ownership, nb::arg("forms"),
+        "Create a monolithic PETSc CUDA Mat from a list of lists of bilinear forms.");
 }
 
 } // namespace

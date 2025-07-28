@@ -64,6 +64,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
     unrolled_edge_index += bs[0] * unrolled_row_nnz;
   }
 
+
   // convert local column indices to global ones (unrolling blocked indices)
   std::vector<PetscInt> global_column_indices(_column_indices.size());
   auto col_local_size = bs[1]*col_map.size_local();
@@ -82,7 +83,7 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   // Change matrix type to CUDA
   ierr = MatSetType(A, MATMPIAIJCUSPARSE);
   if (ierr != 0)
-    petsc::error(ierr, __FILE__, "MatSetFromOptions");
+    petsc::error(ierr, __FILE__, "MatSetType");
 
   // Set block sizes
   ierr = MatSetBlockSizes(A, 1, 1);
@@ -148,7 +149,6 @@ Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
   ierr = MatSetOption(A, MAT_KEEP_NONZERO_PATTERN, PETSC_TRUE);
   if (ierr != 0)
     petsc::error(ierr, __FILE__, "MatSetOption");
-
   return A;
 }
 

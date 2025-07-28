@@ -112,7 +112,6 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
   int facet_increment = (integral_type == fem::IntegralType::interior_facet) ? 4 : 2;
   switch (integral_type) {
     case fem::IntegralType::cell:
-      if (rank == 0) std::cout << "cell" <<std::endl;
       for (auto& cell : active_local_entities) {
         if (cell >= entity_ranks.num_nodes()) continue;
         for (auto& r : entity_ranks.links(cell)) {

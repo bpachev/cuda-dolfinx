@@ -77,7 +77,9 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
           "__init__",
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
               dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form,
-	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources)
+	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources,
+	      std::vector<int>& integral_tensor_indices
+	      )
              {
 	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
@@ -85,10 +87,12 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                  &form,
 		 p,
 		 tabulate_tensor_names,
-		 tabulate_tensor_sources
+		 tabulate_tensor_sources,
+		 integral_tensor_indices
                );
              }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"),
-	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources")
+	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources"),
+	     nb::arg("integral_tensor_indices")
 	     )
       .def(
           "compile",
@@ -100,23 +104,21 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
              }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"))
       .def(
           "set_restriction",
-	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<std::vector<int32_t>>& restricted_inds,
-             std::vector<std::vector<int32_t>>& target_inds)
+	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<int32_t> offsets,
+       std::vector<int32_t> ghost_offsets,
+	     std::vector<std::vector<int32_t>>& restricted_inds)
 	     {
-	       if (restricted_inds.size() != target_inds.size()) {
-                 throw std::runtime_error("Length of restricted inds and target inds lists must match!");
+	       if (restricted_inds.size() != offsets.size()) {
+                 throw std::runtime_error("Length of restricted inds and offset lists must match!");
                }
                std::vector<std::shared_ptr<std::map<::int32_t, std::int32_t>>> restrictions;
                for (int i = 0; i < restricted_inds.size(); i++) {
                  auto m = std::make_shared<std::map<std::int32_t, std::int32_t>>();
-                 if (restricted_inds[i].size() != target_inds[i].size()) {
-                   throw std::runtime_error("Length of restricted ind array and target ind array must match!");
-                 }
-                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = target_inds[i][j];
+                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = j;
                  restrictions.push_back(m);
                }
-               cf.set_restriction(restrictions);
-	     }, nb::arg("restricted_inds"), nb::arg("target_inds"))
+               cf.set_restriction(offsets, ghost_offsets, restrictions);
+	     }, nb::arg("offsets"), nb::arg("ghost_offsets"), nb::arg("restricted_inds"))
       .def_prop_ro("compiled", &dolfinx::fem::CUDAForm<T,U>::compiled)
       .def_prop_ro("restricted", &dolfinx::fem::CUDAForm<T,U>::restricted)
       .def("to_device", &dolfinx::fem::CUDAForm<T,U>::to_device);
@@ -236,6 +238,15 @@ void declare_cuda_funcs(nb::module_& m)
        nb::arg("context"), nb::arg("assembler"), nb::arg("cuda_form"), nb::arg("coefficients"),
        "Pack a given subset of form coefficients on device");
 
+  m.def("zero_matrix_entries",
+        [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
+           dolfinx::la::CUDAMatrix& cuda_A) {
+          
+          assembler.zero_matrix_entries(cuda_context, cuda_A);
+        }, nb::arg("context"), nb::arg("assembler"), nb::arg("A"),
+        "Zero matrix entries"
+  );
+
   m.def("assemble_matrix_on_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
            dolfinx::fem::CUDAForm<T,U>& cuda_form, dolfinx::mesh::CUDAMesh<U>& cuda_mesh,
@@ -251,15 +262,12 @@ void declare_cuda_funcs(nb::module_& m)
           /*assembler.compute_lookup_tables(
             cuda_context, *cuda_dofmap0, *cuda_dofmap1,
             cuda_bc0, cuda_bc1, cuda_a_form_integrals, cuda_A, false);*/
-          assembler.zero_matrix_entries(cuda_context, cuda_A);
           assembler.assemble_matrix(
             cuda_context, cuda_mesh, *cuda_dofmap0, *cuda_dofmap1,
             cuda_bc0, cuda_bc1, cuda_form.integrals(),
             cuda_form.constants(), cuda_form.coefficients(),
             cuda_A, false);
           assembler.set_diagonal(cuda_context, cuda_A, cuda_bc0);
-          cuda_A.apply(MAT_FINAL_ASSEMBLY);
- 
         },
         nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"),
         nb::arg("A"), nb::arg("bcs0"), nb::arg("bcs1"), "Assemble matrix on GPU."

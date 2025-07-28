@@ -8,6 +8,7 @@ set(HEADERS_fem
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormCoefficients.h
     ${CMAKE_CURRENT_SOURCE_DIR}/CUDAFormIntegral.h
     ${CMAKE_CURRENT_SOURCE_DIR}/petsc.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils.h
     PARENT_SCOPE
 )
 

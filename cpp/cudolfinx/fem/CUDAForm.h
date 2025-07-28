@@ -8,6 +8,7 @@
 
 #include <dolfinx/fem/Form.h>
 #include <dolfinx/fem/DirichletBC.h>
+#include <dolfinx/common/IndexMap.h>
 #include <cudolfinx/common/CUDA.h>
 #include <cudolfinx/common/CUDAStore.h>
 #include <cudolfinx/fem/CUDADirichletBC.h>
@@ -19,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <ufcx.h>
+#include <ranges>
 
 namespace dolfinx {
 
@@ -40,7 +42,8 @@ public:
     Form<T,U>* form,
     ufcx_form* ufcx_form,
     std::vector<std::string>& tabulate_tensor_names,
-    std::vector<std::string>& tabulate_tensor_sources
+    std::vector<std::string>& tabulate_tensor_sources,
+    std::vector<int>& integral_tensor_indices
   )
   : _coefficients(cuda_context, form, _dofmap_store)
   , _constants(cuda_context, form)
@@ -50,7 +53,7 @@ public:
   {
     _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);
     const int* integral_offsets = ufcx_form->form_integral_offsets;
-    if (integral_offsets[3] != tabulate_tensor_names.size()) {
+    if (integral_offsets[3] != integral_tensor_indices.size()) {
       throw std::runtime_error("UFCx form has " + std::to_string(integral_offsets[3])
 		      + " integrals, but only " + std::to_string(tabulate_tensor_names.size())
 		      + " tabulate tensor sources provided to CUDAForm!"
@@ -59,7 +62,8 @@ public:
     for (int i = 0; i < 3; i++) {
       for (int offset = integral_offsets[i]; offset < integral_offsets[i+1]; offset++) {
         int id = ufcx_form->form_integral_ids[offset];
-        _cuda_integrals[i].insert({id, {tabulate_tensor_names[offset], tabulate_tensor_sources[offset]}});
+	int tensor_offset = integral_tensor_indices[offset];
+        _cuda_integrals[i].insert({id, {tabulate_tensor_names[tensor_offset], tabulate_tensor_sources[tensor_offset]}});
       }
     } 
   }
@@ -131,28 +135,53 @@ public:
     _constants.update_constant_values(); 
   }
 
-  void set_restriction(std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> restriction)
+  void set_restriction(
+    std::vector<std::int32_t> offsets,
+    std::vector<std::int32_t> ghost_offsets,
+    std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> restriction)
   {
     if (restriction.size() != _form->function_spaces().size()) {
       throw std::runtime_error("Number of restrictions must equal arity of form (1 for vector, 2 for matrix)!");
     }
-
+    _restriction = restriction;
     if (_restricted_dofmaps.size()) {
       // need to update the restriction
       for (int i = 0; i < _restricted_dofmaps.size(); i++) {
-        _restricted_dofmaps[i]->update(restriction[i].get());
+        _restricted_dofmaps[i]->update(
+          offsets[i],
+          ghost_offsets[i],
+          restriction[i].get()
+        );
       } 
     }
     else {
       for (int i = 0; i < restriction.size(); i++) {
         _restricted_dofmaps.push_back(
           std::make_shared<CUDADofMap>(
-	    _form->function_spaces()[i]->dofmap().get(),
-	    restriction[i].get()
-	  )
-	);
+            _form->function_spaces()[i]->dofmap().get(),
+            offsets[i],
+            ghost_offsets[i],
+            restriction[i].get()
+          )
+	      );
       }
     }
+  }
+
+  const std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> get_restriction()
+  {
+    return _restriction;
+  }
+
+  std::shared_ptr<dolfinx::common::IndexMap> restriction_index_map(size_t i) {
+    std::vector<std::int32_t> restricted_inds;
+    for (auto const& pair: *_restriction[i]) restricted_inds.push_back(pair.first);
+    auto [sub_imap, inds] = dolfinx::common::create_sub_index_map(
+        *_form->function_spaces()[0]->dofmap()->index_map,
+        restricted_inds,
+        dolfinx::common::IndexMapOrder::preserve, false
+    ); 
+    return std::make_shared<dolfinx::common::IndexMap>(std::move(sub_imap));
   }
 
 private:
@@ -160,6 +189,8 @@ private:
   common::CUDAStore<DofMap, CUDADofMap> _dofmap_store;
   // Restricted dofmaps
   std::vector<std::shared_ptr<CUDADofMap>> _restricted_dofmaps;
+  // Restriction
+  std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>> _restriction;
   // Form coefficients
   CUDAFormCoefficients<T, U> _coefficients;
   // Form Constants

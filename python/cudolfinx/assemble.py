@@ -55,7 +55,8 @@ class CUDAAssembler:
       bcs: typing.Optional[typing.Union[list[DirichletBC], CUDADirichletBC]] = [],
       diagonal: float = 1.0,
       constants: typing.Optional[list] = None,
-      coeffs: typing.Optional[list] = None
+      coeffs: typing.Optional[list] = None,
+      zero: bool = True,
   ):
     """Assemble bilinear form into a matrix on the GPU.
 
@@ -100,11 +101,35 @@ class CUDAAssembler:
     # This assumes something has changed on the host
     a.to_device() 
     self.pack_coefficients(a, coeffs)
-
+    if zero: _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
     _cucpp.fem.assemble_matrix_on_device(
        self._ctx, self._cpp_object, a.cuda_form,
        a.cuda_mesh, mat._cpp_object, _bc0, _bc1
     )
+
+    return mat
+
+  def assemble_matrix_block(self,
+    a: BlockCUDAForm,
+    mat: typing.Optional[CUDAMatrix] = None,
+    bcs: typing.Optional[list[list[typing.Any]]] = None,
+    coeffs: typing.Optional[list[list[typing.Any]]] = None,
+    constants: typing.Optional[list[list[typing.Any]]] = None,
+    zero: bool = True
+  ):
+    """Assemble block form into a matrix on the GPU"""
+
+    if mat is None:
+      mat = self.create_matrix_block(a)
+
+    if zero:
+      _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
+    for i, row in enumerate(a.forms):
+      for j, form in enumerate(row):
+        _bcs = bcs[i][j] if bcs is not None else []
+        _coeffs = coeffs[i][j] if coeffs is not None else None
+        _constants = constants[i][j] if constants is not None else None
+        self.assemble_matrix(form, mat, bcs=_bcs, coeffs=_coeffs, constants=_constants, zero=False)
 
     return mat
 
@@ -183,6 +208,17 @@ class CUDAAssembler:
       raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
     petsc_mat = _cucpp.fem.petsc.create_cuda_matrix(a.dolfinx_form._cpp_object)
     return CUDAMatrix(self._ctx, petsc_mat)
+
+  def create_matrix_block(self, a: BlockCUDAForm) -> CUDAMatrix:
+    """Create a block matrix from a block form"""
+
+    if not isinstance(a, BlockCUDAForm):
+      raise TypeError(f"Expected BlockCUDAForm, got type '{type(a)}'")
+
+    _cpp_forms = [[cuda_form.cuda_form for cuda_form in row] for row in a.forms] 
+    petsc_mat = _cucpp.fem.petsc.create_cuda_matrix_block(_cpp_forms)
+    return CUDAMatrix(self._ctx, petsc_mat)
+
 
   def create_vector(self, b: CUDAForm) -> CUDAVector:
     """Create a CUDAVector from a given form

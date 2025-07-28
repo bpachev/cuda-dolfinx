@@ -25,7 +25,7 @@ class CUDAForm:
         self._cuda_mesh = _create_mesh_on_device(form.mesh, self._ctx)
 
         self._dolfinx_form = form
-        self._wrapped_tabulate_tensors = jit.get_wrapped_tabulate_tensors(form)
+        self._wrapped_tabulate_tensors, self._integral_tensor_indices = jit.get_wrapped_tabulate_tensors(form)
         ufcx_form_addr = form.module.ffi.cast("uintptr_t", form.module.ffi.addressof(form.ufcx_form))
 
         cpp_form = form._cpp_object
@@ -47,7 +47,8 @@ class CUDAForm:
                 cpp_form,
                 ufcx_form_addr,
                 _tabulate_tensor_names,
-                _tabulate_tensor_sources
+                _tabulate_tensor_sources,
+                self._integral_tensor_indices
         )
 
         # TODO expose these parameters to the user
@@ -106,37 +107,75 @@ class BlockCUDAForm:
         if type(forms[0]) is CUDAForm: self._init_vector()
         else: self._init_matrix()
 
+    def _get_restriction_offsets(self, forms, restrictions=None):
+        """Get a list of offsets and restriction indices."""
+
+        offset = 0
+        ghost_offset = 0
+        ghost_offsets = [ghost_offset]
+        offsets = [offset]
+        restriction_inds_list = []
+        local_sizes = []
+        for i, form in enumerate(forms):
+            dofmap = form.function_spaces[0].dofmap
+            local_size = dofmap.index_map.size_local
+            if restrictions is not None:
+                restriction_inds = restrictions[i]
+                local_size = len(restriction_inds[restriction_inds < local_size])
+                num_ghosts = len(restriction_inds) - local_size
+            else:
+                num_ghosts = dofmap.index_map.num_ghosts
+                restriction_inds = np.arange(local_size+num_ghosts, dtype=np.int32)
+            offset += local_size * dofmap.index_map_bs
+            ghost_offset += num_ghosts * dofmap.index_map_bs
+            offsets.append(offset)
+            ghost_offsets.append(ghost_offset)
+            local_sizes.append(local_size*dofmap.index_map_bs)
+            restriction_inds_list.append(restriction_inds)
+        # create offsets that can be directly added to the local index of the ghost
+        # hence the need to subtract out the local size as the CUDADofMap doesn't know how many
+        # restricted dofs are acutally local
+        # TODO just reimplement RestrictedDofMap from multiphenicsx instead of all this dancing around
+        ghost_offsets = [offsets[-1] + ghost_offset - local_size for ghost_offset,local_size in zip(ghost_offsets, local_sizes)]
+        return restriction_inds_list, offsets, ghost_offsets
+        
+
     def _init_vector(self):
         """Initialize vector form."""
 
-        offset = 0
-        offsets = [offset]
-        for i, form in enumerate(self._forms):
-            # note in dolfinx 0.10.0 dofmap is replaced with dofmaps
-            # which means this portion will require reworking
-            dofmap = form.function_spaces[0].dofmap
-            local_size = dofmap.index_map.size_local 
-            if self._restrictions is not None:
-                restriction_inds = self._restrictions[i]
-                # ignore ghosts
-                restriction_inds = restriction_inds[restriction_inds < local_size]
-                local_size = len(restriction_inds) 
-            else:
-                restriction_inds = np.arange(local_size, dtype=np.int32)
-            target_inds = offset + np.arange(local_size, dtype=np.int32) 
-            offset += local_size * dofmap.index_map_bs
-            offsets.append(offset)
-            form.cuda_form.set_restriction([restriction_inds], [target_inds])
+        # don't need ghost offsets for vector assembly
+        restriction_inds_list, self._offsets, ghost_offsets = self._get_restriction_offsets(
+            self._forms, self._restrictions)
+        for form, offset, ghost_offset, restriction_inds in zip(self._forms, self._offsets, ghost_offsets, restriction_inds_list):
+            form.cuda_form.set_restriction(
+                [offset], [ghost_offset], [restriction_inds]
+            )
 
-        self._offsets = offsets
         comm = self._forms[0].dolfinx_form.mesh.comm
-        self._global_size = comm.allreduce(offsets[-1])
-
+        self._global_size = comm.allreduce(self._offsets[-1])
 
     def _init_matrix(self):
         """Initialize matrix form."""
 
-        raise NotImplementedError("Block matrix assembly is not yet implemented!")
+        row_forms = [row[0] for row in self._forms]
+        col_forms = self._forms[0]
+        
+        row_restrictions, row_offsets, row_ghost_offsets = self._get_restriction_offsets(
+            row_forms, self._restrictions[0] if self._restrictions is not None else None
+        )
+
+        col_restrictions, col_offsets, col_ghost_offsets = self._get_restriction_offsets(
+            col_forms, self._restrictions[1] if self._restrictions is not None else None
+        )
+  
+        # restrict forms appropriately
+        for i, row in enumerate(self._forms):
+            for j, form in enumerate(row):
+                form.cuda_form.set_restriction(
+                        [row_offsets[i], col_offsets[j]],
+                        [row_ghost_offsets[i], col_ghost_offsets[j]],
+                        [row_restrictions[i], col_restrictions[j]]
+                        )
 
     @property
     def forms(self):
