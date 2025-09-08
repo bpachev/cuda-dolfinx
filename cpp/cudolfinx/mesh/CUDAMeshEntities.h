@@ -38,11 +38,9 @@ public:
   //-----------------------------------------------------------------------------
   /// Create a set of mesh entities from a mesh
   ///
-  /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] mesh Data structures for mesh topology and geometry
   /// @param[in] dim The dimension of mesh entities
   CUDAMeshEntities(
-    const CUDA::Context& cuda_context,
     const dolfinx::mesh::Mesh<T>& mesh,
     int dim)
     : _tdim(mesh.topology()->dim())

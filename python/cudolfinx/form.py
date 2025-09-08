@@ -9,6 +9,7 @@ from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp, jit
 from dolfinx import fem as fe
 from dolfinx import cpp as _cpp
+import functools
 import numpy as np
 import typing 
 import ufl
@@ -22,7 +23,7 @@ class CUDAForm:
         """
 
         self._ctx = get_cuda_context()
-        self._cuda_mesh = _create_mesh_on_device(form.mesh, self._ctx)
+        self._cuda_mesh = _create_mesh_on_device(form.mesh)
 
         self._dolfinx_form = form
         self._wrapped_tabulate_tensors, self._integral_tensor_indices = jit.get_wrapped_tabulate_tensors(form)
@@ -230,14 +231,16 @@ def form(
         return BlockCUDAForm(cuda_form, restriction)
     else: return cuda_form
 
-def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64], ctx: _cucpp.fem.CUDAContext):
+# Cache this so we don't create multiple copies of the same CUDAMesh
+@functools.cache
+def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64]):
   """Create device-side mesh data
   """
 
   if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
-    return _cucpp.fem.CUDAMesh_float32(ctx, cpp_mesh)
+    return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
   elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
-    return _cucpp.fem.CUDAMesh_float64(ctx, cpp_mesh)
+    return _cucpp.fem.CUDAMesh_float64(cpp_mesh)
   else:
     raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")
 
