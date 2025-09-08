@@ -91,6 +91,8 @@ CUresult launch_cuda_kernel(
   void** extra,
   bool verbose);
 
+/// Launch an assembly kernel with default block/grid sizes
+void launch_assembly_kernel(const CUDA::Context& cuda_context, CUfunction kernel, void** kernel_parameters);
 
 /// CUDA C++ code for a CUDA kernel that performs a binary search
 std::string cuda_kernel_binary_search(void);
@@ -112,15 +114,11 @@ void assemble_vector_cell(
   CUdeviceptr dactive_mesh_entities,
   const dolfinx::mesh::CUDAMesh<U>& mesh,
   const dolfinx::fem::CUDADofMap& dofmap,
- // const dolfinx::fem::CUDADirichletBC<T,U>& bc,
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
   dolfinx::la::CUDAVector& cuda_vector,
   bool verbose)
 {
-  CUresult cuda_err;
-  const char * cuda_err_description;
-
   // Mesh vertex coordinates and cells
   std::int32_t num_cells = mesh.num_cells();
   std::int32_t num_vertices_per_cell = mesh.num_vertices_per_cell();
@@ -128,7 +126,6 @@ void assemble_vector_cell(
   std::int32_t num_vertices = mesh.num_vertices();
   std::int32_t num_coordinates_per_vertex = mesh.num_coordinates_per_vertex();
   CUdeviceptr dvertex_coordinates = mesh.vertex_coordinates();
-  //CUdeviceptr dcell_permutations = mesh.cell_permutations();
 
   // Integral constants and coefficients
   std::int32_t num_constant_values = constants.num_constant_values();
@@ -140,34 +137,10 @@ void assemble_vector_cell(
   // Mapping of cellwise to global degrees of freedom and Dirichlet boundary conditions
   int num_dofs_per_cell = dofmap.num_dofs_per_cell();
   CUdeviceptr ddofmap = dofmap.dofs_per_cell();
- // CUdeviceptr dbc = bc.dof_markers();
 
   // Global vector
   std::int32_t num_values = cuda_vector.num_local_values();
   CUdeviceptr dvalues = cuda_vector.values_write();
-
-  // Use the CUDA occupancy calculator to determine a grid and block
-  // size for the CUDA kernel
-  int min_grid_size;
-  int block_size;
-  int shared_mem_size_per_thread_block = 0;
-  cuda_err = cuOccupancyMaxPotentialBlockSize(
-    &min_grid_size, &block_size, kernel, 0, 0, 0);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuOccupancyMaxPotentialBlockSize() failed with " +
-      std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  unsigned int grid_dim_x = min_grid_size;
-  unsigned int grid_dim_y = 1;
-  unsigned int grid_dim_z = 1;
-  unsigned int block_dim_x = block_size;
-  unsigned int block_dim_y = 1;
-  unsigned int block_dim_z = 1;
-  CUstream stream = NULL;
 
   // Launch device-side kernel to compute element matrices
   (void) cuda_context;
@@ -178,7 +151,6 @@ void assemble_vector_cell(
     &num_vertices,
     &num_coordinates_per_vertex,
     &dvertex_coordinates,
-   // &dcell_permutations,
     &num_active_mesh_entities,
     &dactive_mesh_entities,
     &num_constant_values,
@@ -187,30 +159,10 @@ void assemble_vector_cell(
     &dcoefficient_values,
     &num_dofs_per_cell,
     &ddofmap,
-   // &dbc,
     &num_values,
     &dvalues};
 
-  cuda_err = launch_cuda_kernel(
-    kernel, grid_dim_x, grid_dim_y, grid_dim_z,
-    block_dim_x, block_dim_y, block_dim_z,
-    shared_mem_size_per_thread_block,
-    stream, kernel_parameters, NULL, verbose);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuLaunchKernel() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  // Wait for the kernel to finish.
-  cuda_err = cuCtxSynchronize();
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
+  launch_assembly_kernel(cuda_context, kernel, kernel_parameters);
 
   cuda_vector.restore_values_write();
 }
@@ -231,9 +183,6 @@ void assemble_vector_facet(
   bool verbose,
   bool interior)
 {
-  CUresult cuda_err;
-  const char * cuda_err_description;
-
   // Mesh vertex coordinates and cells
   std::int32_t num_cells = mesh.num_cells();
   std::int32_t num_vertices_per_cell = mesh.num_vertices_per_cell();
@@ -253,13 +202,10 @@ void assemble_vector_facet(
   // Mapping of cellwise to global degrees of freedom and Dirichlet boundary conditions
   int num_dofs_per_cell = dofmap.num_dofs_per_cell();
   CUdeviceptr ddofmap = dofmap.dofs_per_cell();
- // CUdeviceptr dbc = bc.dof_markers();
 
   // Global vector
   std::int32_t num_values = cuda_vector.num_local_values();
   CUdeviceptr dvalues = cuda_vector.values_write();
-
-  (void) cuda_context;
 
   std::vector<void*> kernel_parameters;
   kernel_parameters.insert(kernel_parameters.end(), {
@@ -270,14 +216,12 @@ void assemble_vector_facet(
     &num_coordinates_per_vertex,
     &dvertex_coordinates});
 
-
   std::int32_t tdim = mesh.tdim();
   const dolfinx::mesh::CUDAMeshEntities<U>& facets = mesh.mesh_entities()[tdim-1];
   std::int32_t num_mesh_entities_per_cell = facets.num_mesh_entities_per_cell();
   CUdeviceptr dfacet_permutations = facets.mesh_entity_permutations();
   CUdeviceptr coefficient_values_offsets = coefficients.coefficient_values_offsets();
   std::int32_t num_coefficients = coefficients.num_coefficients();
-
 
   if (interior) {
     kernel_parameters.insert(kernel_parameters.end(), {
@@ -296,54 +240,10 @@ void assemble_vector_facet(
     &dcoefficient_values,
     &num_dofs_per_cell,
     &ddofmap,
-   // &dbc,
     &num_values,
     &dvalues});
 
-
-  // Use the CUDA occupancy calculator to determine a grid and block
-  // size for the CUDA kernel
-  int min_grid_size;
-  int block_size;
-  int shared_mem_size_per_thread_block = 0;
-  cuda_err = cuOccupancyMaxPotentialBlockSize(
-    &min_grid_size, &block_size, kernel, 0, 0, 0);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuOccupancyMaxPotentialBlockSize() failed with " +
-      std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  unsigned int grid_dim_x = min_grid_size;
-  unsigned int grid_dim_y = 1;
-  unsigned int grid_dim_z = 1;
-  unsigned int block_dim_x = block_size;
-  unsigned int block_dim_y = 1;
-  unsigned int block_dim_z = 1;
-  CUstream stream = NULL;
-
-  cuda_err = launch_cuda_kernel(
-    kernel, grid_dim_x, grid_dim_y, grid_dim_z,
-    block_dim_x, block_dim_y, block_dim_z,
-    shared_mem_size_per_thread_block,
-    stream, kernel_parameters.data(), NULL, verbose);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuLaunchKernel() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  // Wait for the kernel to finish.
-  cuda_err = cuCtxSynchronize();
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
+  launch_assembly_kernel(cuda_context, kernel, kernel_parameters.data());
 
   cuda_vector.restore_values_write();
 }
@@ -365,9 +265,6 @@ void lift_bc_cell(
   dolfinx::la::CUDAVector& b,
   bool verbose)
 {
-  CUresult cuda_err;
-  const char * cuda_err_description;
-
   std::int32_t num_cells = mesh.num_cells();
   std::int32_t num_vertices_per_cell = mesh.num_vertices_per_cell();
   CUdeviceptr dvertex_indices_per_cell = mesh.vertex_indices_per_cell();
@@ -395,31 +292,7 @@ void lift_bc_cell(
   std::int32_t num_rows = b.num_local_values();
   CUdeviceptr db = b.values_write();
 
-  // Use the CUDA occupancy calculator to determine a grid and block
-  // size for the CUDA kernel
-  int min_grid_size;
-  int block_size;
-  int shared_mem_size_per_thread_block = 0;
-  cuda_err = cuOccupancyMaxPotentialBlockSize(
-    &min_grid_size, &block_size, kernel, 0, 0, 0);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuOccupancyMaxPotentialBlockSize() failed with " +
-      std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  unsigned int grid_dim_x = min_grid_size;
-  unsigned int grid_dim_y = 1;
-  unsigned int grid_dim_z = 1;
-  unsigned int block_dim_x = block_size;
-  unsigned int block_dim_y = 1;
-  unsigned int block_dim_z = 1;
-  CUstream stream = NULL;
-
   // Launch device-side kernel to compute element matrices
-  (void) cuda_context;
   void * kernel_parameters[] = {
     &num_cells,
     &num_vertices_per_cell,
@@ -430,7 +303,6 @@ void lift_bc_cell(
     &dcoefficient_values,
     &num_constant_values,
     &dconstant_values,
-   // &dcell_permutations,
     &num_dofs_per_cell0,
     &num_dofs_per_cell1,
     &ddofmap0,
@@ -442,26 +314,7 @@ void lift_bc_cell(
     &num_rows,
     &dx0,
     &db};
-  cuda_err = launch_cuda_kernel(
-    kernel, grid_dim_x, grid_dim_y, grid_dim_z,
-    block_dim_x, block_dim_y, block_dim_z,
-    shared_mem_size_per_thread_block,
-    stream, kernel_parameters, NULL, verbose);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuLaunchKernel() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  // Wait for the kernel to finish.
-  cuda_err = cuCtxSynchronize();
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
+  launch_assembly_kernel(cuda_context, kernel, kernel_parameters);
 
   b.restore_values_write();
   if (x0) x0->restore_values();
@@ -487,15 +340,12 @@ void lift_bc_facet(
   CUdeviceptr mesh_entities,
   bool interior)
 {
-  CUresult cuda_err;
-  const char * cuda_err_description;
 
   std::int32_t num_vertices_per_cell = mesh.num_vertices_per_cell();
   CUdeviceptr dvertex_indices_per_cell = mesh.vertex_indices_per_cell();
   std::int32_t num_vertices = mesh.num_vertices();
   std::int32_t num_coordinates_per_vertex = mesh.num_coordinates_per_vertex();
   CUdeviceptr dvertex_coordinates = mesh.vertex_coordinates();
-  //CUdeviceptr dcell_permutations = mesh.cell_permutations();
 
   int num_dofs_per_cell0 = dofmap0.num_dofs_per_cell();
   CUdeviceptr ddofmap0 = dofmap0.dofs_per_cell();
@@ -516,31 +366,7 @@ void lift_bc_facet(
   std::int32_t num_rows = b.num_local_values();
   CUdeviceptr db = b.values_write();
 
-  // Use the CUDA occupancy calculator to determine a grid and block
-  // size for the CUDA kernel
-  int min_grid_size;
-  int block_size;
-  int shared_mem_size_per_thread_block = 0;
-  cuda_err = cuOccupancyMaxPotentialBlockSize(
-    &min_grid_size, &block_size, kernel, 0, 0, 0);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuOccupancyMaxPotentialBlockSize() failed with " +
-      std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  unsigned int grid_dim_x = min_grid_size;
-  unsigned int grid_dim_y = 1;
-  unsigned int grid_dim_z = 1;
-  unsigned int block_dim_x = block_size;
-  unsigned int block_dim_y = 1;
-  unsigned int block_dim_z = 1;
-  CUstream stream = NULL;
-
   // Launch device-side kernel to compute element matrices
-  (void) cuda_context;
   std::vector<void*> kernel_parameters;
   kernel_parameters.insert(
     kernel_parameters.end(), {
@@ -583,27 +409,7 @@ void lift_bc_facet(
     &num_rows,
     &dx0,
     &db});
-  cuda_err = launch_cuda_kernel(
-    kernel, grid_dim_x, grid_dim_y, grid_dim_z,
-    block_dim_x, block_dim_y, block_dim_z,
-    shared_mem_size_per_thread_block,
-    stream, kernel_parameters.data(), NULL, verbose);
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuLaunchKernel() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
-  // Wait for the kernel to finish.
-  cuda_err = cuCtxSynchronize();
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
-
+  launch_assembly_kernel(cuda_context, kernel, kernel_parameters.data());
   b.restore_values_write();
   if (x0) x0->restore_values();
 }
@@ -742,7 +548,18 @@ public:
                    break;
     }
 
-    kern_name += (form.rank() == 2) ? std::string("_mat") : std::string("_vec");
+    switch (form.rank()) {
+      case 0:
+        kern_name += std::string("_scalar");
+        break;
+      case 1:
+        kern_name += std::string("_vec");
+        break;
+      case 2:
+      default:
+        kern_name += std::string("_mat");
+        break;	
+    }
 
     _assembly_kernel = _assembly_module.get_device_function(kern_name);
 
@@ -760,6 +577,9 @@ public:
         std::string("lift_bc_") + _name);
     }
 
+    if (form.rank() == 0) {
+      CUDA::safeMemAlloc(&_dscalar_value, sizeof(T)); 
+    }
   #if 0
     // Set the preferred cache configuration to make more shared memory
     // available to the kernel
@@ -854,6 +674,8 @@ public:
     _element_values.clear();
     if (_dmesh_entities)
       cuMemFree(_dmesh_entities);
+    if (_dscalar_value)
+      cuMemFree(_dscalar_value);
   }
 
   //-----------------------------------------------------------------------------
@@ -983,6 +805,89 @@ public:
     /// Get a handle to the assembly kernel
     CUfunction assembly_kernel() const { return _assembly_kernel; }
 
+  //-----------------------------------------------------------------------------
+  /// Assemble a scalar from the form integral
+  T assemble_scalar(
+    const CUDA::Context& cuda_context,
+    const dolfinx::mesh::CUDAMesh<U>& mesh,
+    const dolfinx::fem::CUDAFormConstants<T>& constants,
+    const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
+    bool verbose) const
+  {
+    bool interior = false;
+    bool facet = false;
+  
+    switch (_integral_type) {
+    case IntegralType::cell:
+      break;
+    case IntegralType::interior_facet:
+      interior = true;
+    case IntegralType::exterior_facet:
+      facet = true;
+      break;
+    default:
+      throw std::runtime_error(
+        "Forms of type " + to_string(_integral_type) + " are not supported "
+        "at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
+    }
+
+    // Mesh vertex coordinates and cells
+    std::int32_t num_cells = mesh.num_cells();
+    std::int32_t num_vertices_per_cell = mesh.num_vertices_per_cell();
+    CUdeviceptr dvertex_indices_per_cell = mesh.vertex_indices_per_cell();
+    std::int32_t num_vertices = mesh.num_vertices();
+    std::int32_t num_coordinates_per_vertex = mesh.num_coordinates_per_vertex();
+    CUdeviceptr dvertex_coordinates = mesh.vertex_coordinates();
+
+    // Integral constants and coefficients
+    std::int32_t num_constant_values = constants.num_constant_values();
+    CUdeviceptr dconstant_values = constants.constant_values();
+    std::int32_t num_coefficient_values_per_cell =
+      coefficients.num_packed_coefficient_values_per_cell();
+    CUdeviceptr dcoefficient_values = coefficients.packed_coefficient_values();
+
+    std::vector<void*> kernel_parameters;
+    kernel_parameters.insert(kernel_parameters.end(), {
+      &num_cells,
+      &num_vertices_per_cell,
+      &dvertex_indices_per_cell,
+      &num_vertices,
+      &num_coordinates_per_vertex,
+      &dvertex_coordinates});
+
+    std::int32_t tdim = (facet) ? mesh.tdim()-1 : mesh.tdim();
+    const dolfinx::mesh::CUDAMeshEntities<U>& entities = mesh.mesh_entities()[tdim];
+    std::int32_t num_mesh_entities_per_cell = entities.num_mesh_entities_per_cell();
+    CUdeviceptr dentity_permutations = entities.mesh_entity_permutations();
+    CUdeviceptr coefficient_values_offsets = coefficients.coefficient_values_offsets();
+    std::int32_t num_coefficients = coefficients.num_coefficients();
+    std::int32_t num_active_mesh_entities = _num_mesh_entities + _num_mesh_ghost_entities;
+    CUdeviceptr active_mesh_entities = _dmesh_entities;
+    CUdeviceptr value = _dscalar_value;
+
+    if (interior) {
+      kernel_parameters.insert(kernel_parameters.end(), {
+        &num_mesh_entities_per_cell,
+        &dentity_permutations,
+        &num_coefficients,
+        &coefficient_values_offsets});
+    }
+
+    kernel_parameters.insert(kernel_parameters.end(), {
+      &num_active_mesh_entities,
+      &active_mesh_entities,
+      &num_constant_values,
+      &dconstant_values,
+      &num_coefficient_values_per_cell,
+      &dcoefficient_values,
+      &value});
+
+    // reset accumulator to zero
+    set_scalar_value(0.0);
+    launch_assembly_kernel(cuda_context, _assembly_kernel, kernel_parameters.data());
+
+    return get_scalar_value();
+  }
   //-----------------------------------------------------------------------------
   /// Assemble a vector from the form integral
   void assemble_vector(
@@ -1923,6 +1828,18 @@ public:
   /// @param[in] form_integral Another CUDAFormIntegral object
   CUDAFormIntegral& operator=(const CUDAFormIntegral& form_integral) = delete;
 
+  /// Setter for device value for scalar integrals
+  /// @param[in] value Value to set
+  void set_scalar_value(T value) const {
+    CUDA::safeMemcpyHtoD(_dscalar_value, &value, sizeof(T));
+  }
+
+  /// Getter for device value for scalar integrals
+  T get_scalar_value() const {
+    T value = 0.0;
+    CUDA::safeMemcpyDtoH(&value, _dscalar_value, sizeof(T));
+    return value;
+  }
 
 private:
   /// Type of the integral
@@ -2007,6 +1924,9 @@ private:
 
   /// CUDA kernel for imposing essential boundary conditions
   CUfunction _lift_bc_kernel;
+
+  /// CUDA scalar value for scalar integrals
+  CUdeviceptr _dscalar_value;
 };
 
 

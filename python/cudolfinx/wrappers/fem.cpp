@@ -304,6 +304,22 @@ void declare_cuda_funcs(nb::module_& m)
         "Assemble vector on GPU."
   );
 
+  m.def("assemble_scalar_on_device",
+        [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
+           dolfinx::fem::CUDAForm<T,U>& cuda_form,
+           dolfinx::mesh::CUDAMesh<U>& cuda_mesh)
+	{
+
+          return assembler.assemble_scalar(
+             cuda_context, cuda_mesh,
+             cuda_form.integrals(), cuda_form.constants(),
+             cuda_form.coefficients(), false);
+	},
+	nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"),
+	"Assemble scalar integral on GPU."
+  );
+
+
   m.def("apply_lifting_on_device",
         [](const dolfinx::CUDA::Context& cuda_context, dolfinx::fem::CUDAAssembler& assembler,
            std::vector<std::shared_ptr<dolfinx::fem::CUDAForm<T,U>>>& cuda_form,
