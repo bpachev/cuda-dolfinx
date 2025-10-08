@@ -143,11 +143,11 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                                          "Mesh object on GPU")
       .def(
           "__init__",
-          [](dolfinx::mesh::CUDAMesh<T>* cumesh, const dolfinx::CUDA::Context& cuda_context,
+          [](dolfinx::mesh::CUDAMesh<T>* cumesh,
              const dolfinx::mesh::Mesh<T>& mesh) {
-            new (cumesh) dolfinx::mesh::CUDAMesh<T>(cuda_context, mesh);
+            new (cumesh) dolfinx::mesh::CUDAMesh<T>(mesh);
           },
-          nb::arg("context"), nb::arg("mesh"));
+          nb::arg("mesh"));
 
   m.def("ghost_layer_mesh", dolfinx::mesh::ghost_layer_mesh<T>,
 	"Create mesh with extra layer of ghost cells.");
