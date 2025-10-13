@@ -37,9 +37,8 @@ public:
   //-----------------------------------------------------------------------------
   /// Create a mesh
   ///
-  /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] mesh Data structures for mesh topology and geometry
-  CUDAMesh(const CUDA::Context& cuda_context, const dolfinx::mesh::Mesh<T>& mesh)
+  CUDAMesh(const dolfinx::mesh::Mesh<T>& mesh)
   {
     CUresult cuda_err;
     const char * cuda_err_description;
@@ -160,7 +159,7 @@ public:
 
     for (int dim = 0; dim < _tdim; dim++) {
       _mesh_entities.emplace_back(
-        cuda_context, mesh, dim);
+        mesh, dim);
     }
   }
   //-----------------------------------------------------------------------------
