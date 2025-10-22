@@ -201,6 +201,30 @@ class CUDAAssembler:
     for form, form_constants, form_coeffs in zip(b.forms, _constants, _coeffs):
       self.assemble_vector(form, vec=vec, constants=form_constants, coeffs=form_coeffs, zero=False)
 
+  def assemble_scalar(self,
+    b: CUDAForm,
+    constants=None, coeffs=None
+  ):
+    """Assemble scalar integral on GPU
+
+    Args:
+        b: the functional to use for assembly
+        constants: Form constants
+        coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
+           If an empty list is passed, no repacking will be performed.
+    """
+
+    if not isinstance(b, CUDAForm):
+      raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
+
+    # For now always re-copy to device on assembly
+    # This assumes something has changed on the host
+    b.to_device() 
+    self.pack_coefficients(b, coeffs) 
+    
+    return  _cucpp.fem.assemble_scalar_on_device(self._ctx, self._cpp_object, b.cuda_form,
+      b.cuda_mesh)
+
   def create_matrix(self, a: CUDAForm) -> CUDAMatrix:
     """Create a CUDAMatrix from a given form
     """

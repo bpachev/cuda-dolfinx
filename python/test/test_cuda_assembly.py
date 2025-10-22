@@ -64,6 +64,12 @@ def make_ufl(domain=None):
   kappa = fe.Function(V)
   kappa.interpolate(lambda x: np.sin(x[0])*np.cos(x[1]))
 
+  functional = (
+    ufl.exp(u)*kappa * ufl.dx + 
+    u*kappa * ufl.ds +
+    ufl.avg(u_dg**2) * ufl.avg(kappa) * ufl.dS
+  )
+
   cell_residual = (ufl.exp(u)*p*kappa + ufl.dot(ufl.grad(u), ufl.grad(p))) * ufl.dx
   exterior_facet_residual = u*kappa*p * ufl.dot(ufl.grad(u), n) * ufl.ds
   interior_facet_residual = ufl.avg(p_dg) * ufl.avg(kappa) * ufl.avg(u_dg**2) * ufl.dS
@@ -80,6 +86,7 @@ def make_ufl(domain=None):
   return {
            "coeff": kappa,
            "bcs": [bc],
+           "scalar": [functional],
            "vector": [cell_residual, exterior_facet_residual, interior_facet_residual],
            "matrix": [cell_jac, exterior_jac, interior_jac]}
 
@@ -88,6 +95,7 @@ def test_assembly():
   """
 
   ufl_forms = make_ufl()
+
 
   for i, form in enumerate(ufl_forms["vector"]):
       fenics_form = fe.form(form)
@@ -119,9 +127,15 @@ def test_cuda_assembly():
 
   ufl_forms = make_ufl()
   asm = cufem.CUDAAssembler()
+  
+  for i, form in enumerate(ufl_forms["scalar"]):
+    fenics_form = fe.form(form)
+    cuda_form = cufem.form(form)
+    value1 = fe.assemble_scalar(fenics_form)
+    value2 = asm.assemble_scalar(cuda_form)
+    assert np.allclose(value1, value2)
 
   for i, form in enumerate(ufl_forms['vector']):
-    if i == 0: continue
     f = fe.form(form)
     vec1 = fe.assemble_vector(f)
     vec2 = asm.assemble_vector(cufem.form(form))

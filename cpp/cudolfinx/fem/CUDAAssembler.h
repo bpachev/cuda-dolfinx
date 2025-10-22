@@ -282,6 +282,74 @@ public:
 
   }
   //-----------------------------------------------------------------------------
+  /// Assemble functional over mesh.
+  ///
+  /// @param[in] cuda_context A context for a CUDA device
+  /// @param[in] mesh Device-side mesh data
+  /// @param[in] dofmap Device-side data for degrees of freedom
+  /// @param[in] form_integrals Device-side kernels and data for each
+  ///                           integral of the variational form
+  /// @param[in] constants Device-side data for form constants
+  /// @param[in] coefficients Device-side data for form coefficients
+  template <dolfinx::scalar T,
+        std::floating_point U = dolfinx::scalar_value_type_t<T>>
+  T assemble_scalar(
+  const CUDA::Context& cuda_context,
+  const dolfinx::mesh::CUDAMesh<U>& mesh,
+  const std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals,
+  const dolfinx::fem::CUDAFormConstants<T>& constants,
+  const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
+  bool verbose) const
+  {
+    T integral = 0.0;	  
+    {
+      // Perform assembly for cell integrals
+      auto it = form_integrals.find(IntegralType::cell);
+      if (it != form_integrals.end()) {
+        const std::vector<CUDAFormIntegral<T,U>>& cuda_cell_integrals = it->second;
+        for (auto const& cuda_cell_integral : cuda_cell_integrals) {
+          integral += cuda_cell_integral.assemble_scalar(
+            cuda_context, mesh,
+            constants, coefficients, verbose);
+        }
+      }
+    }
+
+    {
+      // Perform assembly for exterior facet integrals
+      auto it = form_integrals.find(IntegralType::exterior_facet);
+      if (it != form_integrals.end()) {
+        const std::vector<CUDAFormIntegral<T,U>>&
+          cuda_exterior_facet_integrals = it->second;
+        for (auto const& cuda_exterior_facet_integral :
+               cuda_exterior_facet_integrals)
+        {
+          integral += cuda_exterior_facet_integral.assemble_scalar(
+            cuda_context, mesh,
+            constants, coefficients, verbose);
+        }
+      }
+    }
+
+    {
+      // Perform assembly for interior facet integrals
+      auto it = form_integrals.find(IntegralType::interior_facet);
+      if (it != form_integrals.end()) {
+        const std::vector<CUDAFormIntegral<T,U>>&
+          cuda_interior_facet_integrals = it->second;
+        for (auto const& cuda_interior_facet_integral :
+               cuda_interior_facet_integrals)
+        {
+          integral += cuda_interior_facet_integral.assemble_scalar(
+            cuda_context, mesh,
+            constants, coefficients, verbose);
+        }
+      }
+    }
+ 
+    return integral;
+  }
+  //-----------------------------------------------------------------------------
   /// Assemble linear form into a vector. The vector must already be
   /// initialised. Does not zero vector and ghost contributions are
   /// not accumulated (sent to owner). Caller is responsible for
