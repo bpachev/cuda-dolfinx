@@ -28,7 +28,7 @@ namespace fem {
 
 /// Consolidates all form classes into one
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 class CUDAForm
 {
 

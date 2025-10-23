@@ -113,7 +113,7 @@ public:
   /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] coefficients Device-side data for form coefficients
   template <dolfinx::scalar T,
-           std::floating_point U = dolfinx::scalar_value_type_t<T>>
+           std::floating_point U = dolfinx::scalar_value_t<T>>
   void pack_coefficients(
     const CUDA::Context& cuda_context,
     dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients
@@ -135,7 +135,7 @@ public:
   /// @param[in] coefficients Device-side data for form coefficients
   /// @param[in] coefficients_to_pack 
   template <dolfinx::scalar T,
-           std::floating_point U = dolfinx::scalar_value_type_t<T>>
+           std::floating_point U = dolfinx::scalar_value_t<T>>
   void pack_coefficients(
     const CUDA::Context& cuda_context,
     dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
@@ -175,7 +175,7 @@ public:
   /// @param[in] coefficients Device-side data for form coefficients
   /// @param[in] indices Indices of coefficients to repack
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void repack_coefficients(
     const CUDA::Context& cuda_context,
     dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
@@ -292,7 +292,7 @@ public:
   /// @param[in] constants Device-side data for form constants
   /// @param[in] coefficients Device-side data for form coefficients
   template <dolfinx::scalar T,
-        std::floating_point U = dolfinx::scalar_value_type_t<T>>
+        std::floating_point U = dolfinx::scalar_value_t<T>>
   T assemble_scalar(
   const CUDA::Context& cuda_context,
   const dolfinx::mesh::CUDAMesh<U>& mesh,
@@ -365,7 +365,7 @@ public:
   /// @param[in] coefficients Device-side data for form coefficients
   /// @param[in,out] b The device-side vector to assemble the form into
   template <dolfinx::scalar T,
-        std::floating_point U = dolfinx::scalar_value_type_t<T>>
+        std::floating_point U = dolfinx::scalar_value_t<T>>
   void assemble_vector(
   const CUDA::Context& cuda_context,
   const dolfinx::mesh::CUDAMesh<U>& mesh,
@@ -441,7 +441,7 @@ public:
   /// @param[in] scale Scaling factor
   /// @param[in,out] b The device-side vector to modify
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void set_bc(
     const CUDA::Context& cuda_context,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc,
@@ -560,7 +560,7 @@ public:
   /// @param[in] scale Scaling factor
   /// @param[in,out] b The device-side vector to modify
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void lift_bc(
     const CUDA::Context& cuda_context,
     const dolfinx::mesh::CUDAMesh<U>& mesh,
@@ -635,7 +635,7 @@ public:
   /// @param[in] scale Scaling factor
   /// @param[in,out] b The device-side vector to modify
 /*  template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void apply_lifting(
     const CUDA::Context& cuda_context,
     const dolfinx::mesh::CUDAMesh<U>& mesh,
@@ -679,7 +679,7 @@ public:
   ///                  initialised before calling this function. The
   ///                  matrix is not zeroed.
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void assemble_matrix(
     const CUDA::Context& cuda_context,
     const dolfinx::mesh::CUDAMesh<U>& mesh,
@@ -745,7 +745,7 @@ public:
   /// @param[in] form_integrals Device-side kernels and data for each
   ///                           integral of the variational form
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void assemble_matrix_local_copy_to_host(
     const CUDA::Context& cuda_context,
     std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals) const
@@ -807,7 +807,7 @@ public:
   ///                  initialised before calling this function. The
   ///                  matrix is not zeroed.
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void assemble_matrix_local_host_global_assembly(
     const CUDA::Context& cuda_context,
     const dolfinx::fem::CUDADofMap& dofmap0,
@@ -876,7 +876,7 @@ public:
   /// @param[in] diagonal The value to set on the diagonal for rows with a
   ///                     boundary condition applied
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void set_diagonal(
     const CUDA::Context& cuda_context,
     dolfinx::la::CUDAMatrix& A,
@@ -960,7 +960,7 @@ public:
   /// Compute lookup tables that are used during matrix assembly for
   /// kernels that need it
   template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
   void compute_lookup_tables(
     const CUDA::Context& cuda_context,
     const dolfinx::fem::CUDADofMap& dofmap0,

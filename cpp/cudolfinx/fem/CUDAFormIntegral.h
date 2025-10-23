@@ -106,7 +106,7 @@ std::pair<std::string, std::string> get_cuda_wrapper(
   int id);
 
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 void assemble_vector_cell(
   const CUDA::Context& cuda_context,
   CUfunction kernel,
@@ -168,7 +168,7 @@ void assemble_vector_cell(
 }
 //-----------------------------------------------------------------------------
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 void assemble_vector_facet(
   const CUDA::Context& cuda_context,
   CUfunction kernel,
@@ -250,7 +250,7 @@ void assemble_vector_facet(
 
 //-----------------------------------------------------------------------------
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 void lift_bc_cell(
   const CUDA::Context& cuda_context,
   CUfunction kernel,
@@ -322,7 +322,7 @@ void lift_bc_cell(
 
 //-----------------------------------------------------------------------------
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 void lift_bc_facet(
   const CUDA::Context& cuda_context,
   CUfunction kernel,
@@ -436,7 +436,7 @@ CUDA::Module compile_form_integral_kernel(
 /// A wrapper for a form integral with a CUDA-based assembly kernel
 /// and data that is stored in the device memory of a CUDA device.
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 class CUDAFormIntegral
 {
 public:
@@ -1939,7 +1939,7 @@ private:
 /// @param[in] assembly_kernel_type The type of assembly kernel to use
 /// @param[in] cudasrcdir Path for outputting CUDA C++ code
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>
 cuda_form_integrals(
   const CUDA::Context& cuda_context,

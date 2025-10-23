@@ -69,7 +69,7 @@ void declare_meshtags(nb::module_& m)
 template <typename T>
 void declare_cuda_templated_objects(nb::module_& m, std::string type)
 {
-  using U = typename dolfinx::scalar_value_type_t<T>;
+  using U = typename dolfinx::scalar_value_t<T>;
 
   std::string pyclass_name = std::string("CUDAForm_") + type;
   nb::class_<dolfinx::fem::CUDAForm<T,U>>(m, pyclass_name.c_str(), "Form on GPU")

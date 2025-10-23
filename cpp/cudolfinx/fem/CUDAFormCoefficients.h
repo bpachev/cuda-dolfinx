@@ -27,7 +27,7 @@ namespace fem {
 /// A wrapper for a form coefficient with data that is stored in the
 /// device memory of a CUDA device.
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 class CUDAFormCoefficients
 {
 public:
