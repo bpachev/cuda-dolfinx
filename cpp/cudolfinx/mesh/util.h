@@ -287,9 +287,9 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
 				recv_disp.data(), MPI_INT64_T, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
   ierr = MPI_Neighbor_alltoallv(tags_send_buffer.data(), send_sizes.data(),
-                                send_disp.data(), dolfinx::MPI::mpi_t<T>(),
+                                send_disp.data(), dolfinx::MPI::mpi_t<T>,
                                 tags_recv_buffer.data(), recv_sizes.data(),
-                                recv_disp.data(), dolfinx::MPI::mpi_t<T>(), neigh_comm);
+                                recv_disp.data(), dolfinx::MPI::mpi_t<T>, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
 
   // Ensure entities/values are sorted before creating new MeshTags object

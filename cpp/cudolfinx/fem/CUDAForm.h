@@ -61,9 +61,9 @@ public:
     }
     for (int i = 0; i < 3; i++) {
       for (int offset = integral_offsets[i]; offset < integral_offsets[i+1]; offset++) {
-        int id = ufcx_form->form_integral_ids[offset];
+        int idx = offset - integral_offsets[i];
 	int tensor_offset = integral_tensor_indices[offset];
-        _cuda_integrals[i].insert({id, {tabulate_tensor_names[tensor_offset], tabulate_tensor_sources[tensor_offset]}});
+        _cuda_integrals[i].insert({idx, {tabulate_tensor_names[tensor_offset], tabulate_tensor_sources[tensor_offset]}});
       }
     } 
   }

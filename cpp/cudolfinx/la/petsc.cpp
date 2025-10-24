@@ -11,7 +11,7 @@
 #include <dolfinx/la/utils.h>
 #include <iostream>
 
-Mat la::petsc::create_cuda_matrix(MPI_Comm comm, const SparsityPattern& sp)
+Mat dolfinx::la::petsc::create_cuda_matrix(MPI_Comm comm, const dolfinx::la::SparsityPattern& sp)
 {
   PetscErrorCode ierr;
   Mat A;

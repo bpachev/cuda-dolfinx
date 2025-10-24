@@ -594,7 +594,8 @@ public:
   #endif
 
     // Allocate device-side storage for mesh entities
-    _mesh_entities = form.domain(_integral_type, i);
+    // TODO: add mixed topology support
+    _mesh_entities = form.domain(_integral_type, i, 0);
     _num_mesh_entities = _mesh_entities.size();
     _mesh_ghost_entities = mesh::active_ghost_entities(_mesh_entities, _integral_type, form.mesh()->topology_mutable());
     _num_mesh_ghost_entities = _mesh_ghost_entities.size();
@@ -1976,56 +1977,19 @@ cuda_form_integrals(
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>
     cuda_form_integrals;
 
-  {
-    // Create device-side kernels and data for cell integrals
-    IntegralType integral_type = IntegralType::cell;
-    int num_integrals = form.num_integrals(integral_type);
-    if (num_integrals > 0) {
-      std::vector<CUDAFormIntegral<T,U>>& cuda_cell_integrals =
-        cuda_form_integrals[integral_type];
-      for (int i : form.integral_ids(integral_type)) {
-
-        cuda_cell_integrals.emplace_back(
-          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
-          max_threads_per_block,
-          min_blocks_per_multiprocessor,
-          num_vertices_per_cell,
-          num_coordinates_per_vertex,
-          num_dofs_per_cell0, num_dofs_per_cell1,
-          assembly_kernel_type, debug, cudasrcdir, verbose);
-      }
-    }
-  }
+  for (IntegralType integral_type : {IntegralType::cell, IntegralType::exterior_facet, IntegralType::interior_facet,
+		  IntegralType::vertex, IntegralType::ridge})
 
   {
-    // Create device-side kernels and data for exterior facet integrals
-    IntegralType integral_type = IntegralType::exterior_facet;
-    int num_integrals = form.num_integrals(integral_type);
+    // Create device-side kernels and data for integrals
+    // TODO: add full mixed-topology support when it becomes more mature in dolfinx
+    int num_integrals = form.num_integrals(integral_type, 0);
     if (num_integrals > 0) {
-      std::vector<CUDAFormIntegral<T,U>>& cuda_exterior_facet_integrals =
+      std::vector<CUDAFormIntegral<T,U>>& cuda_integrals =
         cuda_form_integrals[integral_type];
-      for (int i : form.integral_ids(integral_type)) {
-        cuda_exterior_facet_integrals.emplace_back(
-          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
-          max_threads_per_block,
-          min_blocks_per_multiprocessor,
-          num_vertices_per_cell,
-          num_coordinates_per_vertex,
-          num_dofs_per_cell0, num_dofs_per_cell1,
-          assembly_kernel_type, debug, cudasrcdir, verbose);
-      }
-    }
-  }
+      for (int i = 0; i < num_integrals; i++) {
 
-  {
-    // Create device-side kernels and data for interior facet integrals
-    IntegralType integral_type = IntegralType::interior_facet;
-    int num_integrals = form.num_integrals(integral_type);
-    if (num_integrals > 0) {
-      std::vector<CUDAFormIntegral<T,U>>& cuda_interior_facet_integrals =
-        cuda_form_integrals[integral_type];
-      for (int i : form.integral_ids(integral_type)) {
-        cuda_interior_facet_integrals.emplace_back(
+        cuda_integrals.emplace_back(
           cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
