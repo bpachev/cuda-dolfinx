@@ -9,16 +9,25 @@ from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp, jit
 from dolfinx import fem as fe
 from dolfinx import cpp as _cpp
+from dolfinx.jit import mpi_jit_decorator
 import functools
 import numpy as np
 import typing 
 import ufl
+import os
+from pathlib import Path
+
+DEFAULT_CUDA_JIT_ARGS = {
+    "max_threads_per_block": 1024,
+    "min_blocks_per_multiprocessor": 1,
+    "cachedir":  str(os.getenv("XDG_CACHE_HOME", default=Path.home().joinpath(".cache")) / Path("fenics")) 
+}
 
 class CUDAForm:
     """CUDA wrapper class for a dolfinx.fem.Form
     """
     
-    def __init__(self, form: fe.Form):
+    def __init__(self, form: fe.Form, jit_args: typing.Optional[dict] = {}):
         """Initialize the wrapper
         """
 
@@ -42,7 +51,6 @@ class CUDAForm:
         for name, source in self._wrapped_tabulate_tensors:
             _tabulate_tensor_names.append(name)
             _tabulate_tensor_sources.append(source)
-
         self._cuda_form = form_cls(
                 self._ctx,
                 cpp_form,
@@ -52,8 +60,16 @@ class CUDAForm:
                 self._integral_tensor_indices
         )
 
-        # TODO expose these parameters to the user
-        self._cuda_form.compile(self._ctx, max_threads_per_block=1024, min_blocks_per_multiprocessor=1)
+        _jit_args = DEFAULT_CUDA_JIT_ARGS.copy()
+        _jit_args.update(jit_args)
+
+        @mpi_jit_decorator
+        def do_compilation():
+            self._cuda_form.compile(
+                self._ctx, **_jit_args)
+
+        do_compilation(form.mesh.comm)
+
 
     def to_device(self):
         """Copy host-side coefficients and constants to the device
@@ -211,6 +227,7 @@ class BlockCUDAForm:
 def form(
     form: typing.Union[ufl.Form, typing.Iterable[ufl.Form]],
     restriction: typing.Optional[typing.Iterable[np.typing.NDArray[np.int32]]] = None,
+    cuda_jit_args: typing.Optional[dict] = {},
     **kwargs):
     """Create a CUDAForm from a ufl form."""
 
@@ -219,7 +236,7 @@ def form(
 
         if isinstance(form, ufl.Form):
             dolfinx_form = fe.form(form, **kwargs)
-            return CUDAForm(dolfinx_form)
+            return CUDAForm(dolfinx_form, jit_args=cuda_jit_args)
         elif isinstance(form, collections.abc.Iterable):
             return list(map(lambda sub_form: _create_form(sub_form), form))
         else:

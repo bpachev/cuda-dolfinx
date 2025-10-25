@@ -416,6 +416,7 @@ void lift_bc_facet(
 
 CUDA::Module compile_form_integral_kernel(
   const CUDA::Context& cuda_context,
+  std::string cachedir,
   CUjit_target target,
   int form_rank,
   IntegralType integral_type,
@@ -429,9 +430,26 @@ CUDA::Module compile_form_integral_kernel(
   int32_t num_coeffs_per_cell,
   enum assembly_kernel_type assembly_kernel_type,
   bool debug,
-  const char* cudasrcdir,
   bool verbose,
   std::string& factory_name);
+
+/// Lower-level function to generate the assembly kernel source
+/// code.
+std::string get_form_integral_kernel_src(
+  int form_rank,
+  IntegralType integral_type,
+  std::pair<std::string, std::string> tabulate_tensor_source,
+  std::string factory_name,
+  int32_t max_threads_per_block,
+  int32_t min_blocks_per_multiprocessor,
+  int32_t num_vertices_per_cell,
+  int32_t num_coordinates_per_vertex,
+  int32_t num_dofs_per_cell0,
+  int32_t num_dofs_per_cell1,
+  int32_t num_coeffs_per_cell,
+  enum assembly_kernel_type assembly_kernel_type
+);
+
 
 /// A wrapper for a form integral with a CUDA-based assembly kernel
 /// and data that is stored in the device memory of a CUDA device.
@@ -445,7 +463,7 @@ public:
     : _integral_type()
     , _id()
     , _name()
-    , _cudasrcdir()
+    , _cachedir()
     , _num_vertices_per_cell()
     , _num_coordinates_per_vertex()
     , _num_dofs_per_cell0()
@@ -472,14 +490,15 @@ public:
   /// Create a form_integral
   ///
   /// @param[in] cuda_context A context for a CUDA device
+  /// @param[in] cachedir Path for outputting CUDA C++ ptx and code
   /// @param[in] form_integrals A collection of form integrals
   /// @param[in] integral_type The type of integral
   /// @param[in] i The number of the integral among the integrals of
   ///              the given type belonging to the collection
   /// @param[in] assembly_kernel_type The type of assembly kernel to use
-  /// @param[in] cudasrcdir Path for outputting CUDA C++ code
   CUDAFormIntegral(
     const CUDA::Context& cuda_context,
+    std::string cachedir,
     CUjit_target target,
     const Form<T,U>& form,
     std::pair<std::string, std::string> tabulate_tensor_source,
@@ -492,11 +511,10 @@ public:
     int32_t num_dofs_per_cell1,
     enum assembly_kernel_type assembly_kernel_type,
     bool debug,
-    const char* cudasrcdir,
     bool verbose)
     : _integral_type(integral_type)
     , _id(i)
-    , _cudasrcdir(cudasrcdir)
+    , _cachedir(cachedir)
     , _num_vertices_per_cell()
     , _num_coordinates_per_vertex()
     , _num_dofs_per_cell0(num_dofs_per_cell0)
@@ -514,6 +532,7 @@ public:
     , _delement_matrix_rows(0)
     , _assembly_module(compile_form_integral_kernel(
                          cuda_context,
+			 cachedir,
                          target,
                          form.rank(),
                          _integral_type,
@@ -526,7 +545,7 @@ public:
                          num_dofs_per_cell1,
                          form.coefficient_offsets().back(),
                          assembly_kernel_type,
-                         debug, cudasrcdir, verbose, _name))
+                         debug, verbose, _name))
     , _assembly_kernel_type(assembly_kernel_type)
     , _assembly_kernel()
     , _compute_lookup_table_kernel()
@@ -534,7 +553,6 @@ public:
   {
     CUresult cuda_err;
     const char * cuda_err_description;
-
     std::string kern_name = std::string("assemble_") + _name;
     switch (integral_type) {
            case IntegralType::cell:
@@ -684,7 +702,7 @@ public:
     : _integral_type(form_integral._integral_type)
     , _id(form_integral._id)
     , _name(form_integral._name)
-    , _cudasrcdir(form_integral._cudasrcdir)
+    , _cachedir(form_integral._cachedir)
     , _num_vertices_per_cell(form_integral._num_vertices_per_cell)
     , _num_coordinates_per_vertex(form_integral._num_coordinates_per_vertex)
     , _num_dofs_per_cell0(form_integral._num_dofs_per_cell0)
@@ -709,7 +727,7 @@ public:
     form_integral._integral_type = IntegralType::cell;
     form_integral._id = 0;
     form_integral._name = std::string();
-    form_integral._cudasrcdir = nullptr;
+    form_integral._cachedir = std::string();
     form_integral._num_vertices_per_cell = 0;
     form_integral._num_coordinates_per_vertex = 0;
     form_integral._num_dofs_per_cell0 = 0;
@@ -735,7 +753,7 @@ public:
     _integral_type = form_integral._integral_type;
     _id = form_integral._id;
     _name = form_integral._name;
-    _cudasrcdir = form_integral._cudasrcdir;
+    _cachedir = form_integral._cachedir;
     _num_vertices_per_cell = form_integral._num_vertices_per_cell;
     _num_coordinates_per_vertex = form_integral._num_coordinates_per_vertex;
     _num_dofs_per_cell0 = form_integral._num_dofs_per_cell0;
@@ -759,7 +777,7 @@ public:
     form_integral._integral_type = IntegralType::cell;
     form_integral._id = 0;
     form_integral._name = std::string();
-    form_integral._cudasrcdir = nullptr;
+    form_integral._cachedir = std::string();
     form_integral._num_vertices_per_cell = 0;
     form_integral._num_coordinates_per_vertex = 0;
     form_integral._num_dofs_per_cell0 = 0;
@@ -1852,8 +1870,8 @@ private:
   /// A name for the integral assigned to it by UFC
   std::string _name;
 
-  /// Path to use for outputting CUDA C++ code
-  const char* _cudasrcdir;
+  /// Path to use for outputting CUDA C++ code and ptx
+  std::string _cachedir;
 
   /// The number of vertices in a mesh cell
   int32_t _num_vertices_per_cell;
@@ -1938,12 +1956,13 @@ private:
 /// @param[in] cuda_context A context for a CUDA device
 /// @param[in] form A variational form
 /// @param[in] assembly_kernel_type The type of assembly kernel to use
-/// @param[in] cudasrcdir Path for outputting CUDA C++ code
+/// @param[in] cachedir Path for outputting CUDA C++ code and ptx
 template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_t<T>>
 std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>
 cuda_form_integrals(
   const CUDA::Context& cuda_context,
+  std::string cachedir,
   CUjit_target target,
   const Form<T,U>& form,
   std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
@@ -1951,12 +1970,8 @@ cuda_form_integrals(
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
   bool debug,
-  const char* cudasrcdir,
   bool verbose)
 {
-  // there is no integrals function
-  //const FormIntegrals& form_integrals = form.integrals();
-
   // Get the number of vertices and coordinates
   const mesh::Mesh<U>& mesh = *form.mesh();
   std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(mesh.geometry().cmap().cell_shape());
@@ -1990,17 +2005,17 @@ cuda_form_integrals(
       for (int i = 0; i < num_integrals; i++) {
 
         cuda_integrals.emplace_back(
-          cuda_context, target, form, get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
+          cuda_context, cachedir, target, form,
+	  get_cuda_wrapper(cuda_wrappers, integral_type, i), integral_type, i,
           max_threads_per_block,
           min_blocks_per_multiprocessor,
           num_vertices_per_cell,
           num_coordinates_per_vertex,
           num_dofs_per_cell0, num_dofs_per_cell1,
-          assembly_kernel_type, debug, cudasrcdir, verbose);
+          assembly_kernel_type, debug, verbose);
       }
     }
   }
-
   return cuda_form_integrals;
 }
 

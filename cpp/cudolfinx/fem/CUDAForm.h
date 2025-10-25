@@ -74,12 +74,13 @@ public:
     const CUDA::Context& cuda_context,
     int32_t max_threads_per_block,
     int32_t min_blocks_per_multiprocessor,
+    std::string cachedir,
     enum assembly_kernel_type assembly_kernel_type)
   {
     auto cujit_target = CUDA::get_cujit_target(cuda_context);
     _integrals = cuda_form_integrals(
-      cuda_context, cujit_target, *_form, _cuda_integrals, assembly_kernel_type,
-      max_threads_per_block, min_blocks_per_multiprocessor, false, NULL, false);
+      cuda_context, cachedir, cujit_target, *_form, _cuda_integrals, assembly_kernel_type,
+      max_threads_per_block, min_blocks_per_multiprocessor, false, false);
     _compiled = true;
   }
 
