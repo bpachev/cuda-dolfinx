@@ -31,7 +31,8 @@ def get_tabulate_tensor_sources(form: fem.Form):
             if "tabulate_tensor_integral" in line and line.strip().startswith("void"):
                 parsing_tabulate = True
                 parsing_header = True
-                tabulate_id = line.strip().split()[1].split("_")[-1].split("(")[0]
+                func_name = line.strip().split()[1].split("(")[0]
+                tabulate_id = func_name.replace("tabulate_tensor_integral_", "") 
                 tabulate_body = []
             elif parsing_header:
                 if line.startswith("{"):
@@ -49,7 +50,7 @@ def get_tabulate_tensor_sources(form: fem.Form):
                 if "{" in line:
                     arr = line.split("{")[-1].split("}")[0]
                     ordered_integral_ids = [
-                        part.strip().split("_")[-1] for part in arr.split(",")
+                        part.strip().replace("&integral_", "") for part in arr.split(",")
                     ]
 
     # map ids to order of appearance in tensor list
