@@ -90,25 +90,6 @@ def make_ufl(domain=None):
            "vector": [cell_residual, exterior_facet_residual, interior_facet_residual],
            "matrix": [cell_jac, exterior_jac, interior_jac]}
 
-def test_assembly():
-  """Test correctness of assembly
-  """
-
-  ufl_forms = make_ufl()
-
-
-  for i, form in enumerate(ufl_forms["vector"]):
-      fenics_form = fe.form(form)
-      vec = petsc.create_vector(fenics_form)
-      petsc.assemble_vector(vec, fenics_form)
-
-  for i, form in enumerate(ufl_forms["matrix"]):
-      fenics_form = fe.form(form)
-      mat = petsc.create_matrix(fenics_form)
-      mat.zeroEntries()
-      petsc.assemble_matrix(mat, fenics_form)
-      mat.assemble()
-
 def compare_mats(matcsr, matpetsc):
   """Compare a native FEniCS MatrixCSR to a PETSc matrix
   """
@@ -212,8 +193,18 @@ def test_block_assembly():
     vec_cuda = asm.create_vector_block(cuda_L)
     asm.assemble_vector_block(cuda_L, vec_cuda)
 
-    vec_fe = fe.petsc.create_vector_block(cuda_L.dolfinx_forms)
-    # TODO - update this when switching to DOLFINx v0.10.0
-    fe.petsc.assemble_vector_block(vec_fe, cuda_L.dolfinx_forms, [[None], [None]])
+    vec_fe = fe.petsc.create_vector([V1, V2])
+    fe.petsc.assemble_vector(vec_fe, cuda_L.dolfinx_forms)
     compare_vecs(vec_fe, vec_cuda.vector)
+
+def test_diagonal_assembly():
+  """Test that assembly of just the diagonal of a bilnear form works."""
+  ufl_forms = make_ufl()
+  asm = cufem.CUDAAssembler()
+  for bilinear_form in ufl_forms['matrix']:
+    cuda_form = cufem.form(bilinear_form, form_compiler_options={"part":"diagonal"})
+    dolfinx_form = cuda_form.dolfinx_form
+    vec_cuda = asm.assemble_vector(cuda_form)
+    vec_dolfinx = fe.assemble_vector(dolfinx_form)
+    compare_vecs(vec_dolfinx, vec_cuda.vector)
 
