@@ -59,6 +59,7 @@ nanobind_add_module(
   cudolfinx/wrappers/cudolfinx.cpp
   cudolfinx/wrappers/fem.cpp
   cudolfinx/wrappers/petsc.cpp
+  cudolfinx/wrappers/coefficient.cpp
 )
 
 # Add strict compiler flags include(CheckCXXCompilerFlag)
