@@ -2601,15 +2601,3 @@ std::string dolfinx::fem::cuda_kernel_binary_search(void)
     "}\n";
 }
 //-----------------------------------------------------------------------------
-std::pair<std::string, std::string> dolfinx::fem::get_cuda_wrapper(
-  std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
-  IntegralType integral_type,
-  int id)
-{
-  auto integrals = cuda_wrappers[static_cast<std::size_t>(integral_type)];
-  auto it = integrals.find(id);
-  if (it == integrals.end())
-    throw std::runtime_error("No kernel for requested domain index.");
-  return it->second;
-}
-//-----------------------------------------------------------------------------

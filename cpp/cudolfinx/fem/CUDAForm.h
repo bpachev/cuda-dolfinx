@@ -62,8 +62,26 @@ public:
     for (int i = 0; i < 3; i++) {
       for (int offset = integral_offsets[i]; offset < integral_offsets[i+1]; offset++) {
         int idx = offset - integral_offsets[i];
-	int tensor_offset = integral_tensor_indices[offset];
-        _cuda_integrals[i].insert({idx, {tabulate_tensor_names[tensor_offset], tabulate_tensor_sources[tensor_offset]}});
+        int tensor_offset = integral_tensor_indices[offset];
+        _cuda_kernel_sources[i].insert({idx, {tabulate_tensor_names[tensor_offset], tabulate_tensor_sources[tensor_offset]}});
+      }
+    }
+
+    // initialize the CUDAFormIntegral objects
+    // this mostly just intitializes the mesh entities for each integral
+    // however there is an MPI component to determine the active ghost entities
+    // and so the constructor needs to be called on all processes
+    for (IntegralType integral_type : {IntegralType::cell, IntegralType::exterior_facet, IntegralType::interior_facet,
+      IntegralType::vertex, IntegralType::ridge})
+
+    {
+      // TODO: add full mixed-topology support when it becomes more mature in dolfinx
+      int num_integrals = form->num_integrals(integral_type, 0);
+      if (num_integrals > 0) {
+        std::vector<CUDAFormIntegral<T,U>>& cuda_integrals =
+          _integrals[integral_type];
+        for (int i = 0; i < num_integrals; i++)
+          cuda_integrals.emplace_back(*form, integral_type, i); 
       }
     } 
   }
@@ -78,9 +96,53 @@ public:
     enum assembly_kernel_type assembly_kernel_type)
   {
     auto cujit_target = CUDA::get_cujit_target(cuda_context);
-    _integrals = cuda_form_integrals(
-      cuda_context, cachedir, cujit_target, *_form, _cuda_integrals, assembly_kernel_type,
-      max_threads_per_block, min_blocks_per_multiprocessor, false, false);
+      // Get the number of vertices and coordinates
+    const mesh::Mesh<U>& mesh = *_form->mesh();
+    std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(mesh.geometry().cmap().cell_shape());
+    //std::int32_t num_coordinates_per_vertex = mesh.geometry().dim();
+    std::int32_t num_coordinates_per_vertex = 3;
+
+    // Find the number of degrees of freedom per cell
+    int32_t num_dofs_per_cell0 = 1;
+    int32_t num_dofs_per_cell1 = 1;
+    if (_form->rank() > 0) {
+      const DofMap& dofmap0 = *_form->function_spaces()[0]->dofmap();
+      num_dofs_per_cell0 = dofmap0.element_dof_layout().num_dofs() * dofmap0.element_dof_layout().block_size();
+    }
+    if (_form->rank() > 1) {
+      const DofMap& dofmap1 = *_form->function_spaces()[1]->dofmap();
+      num_dofs_per_cell1 = dofmap1.element_dof_layout().num_dofs() * dofmap1.element_dof_layout().block_size();
+    }
+ 
+    for (auto& [integral_type, integrals_for_type] : _integrals) {
+      auto sources = _cuda_kernel_sources[static_cast<std::size_t>(integral_type)];
+      for (int i = 0; i < integrals_for_type.size(); i++) {
+        std::string name = "";
+        auto it = sources.find(i);
+        if (it == sources.end())
+          throw std::runtime_error("No kernel for requested domain index.");
+        // name is modified by this function
+        auto assembly_module = compile_form_integral_kernel(
+            cuda_context,
+            cachedir,
+            cujit_target,
+            _form->rank(),
+            integral_type,
+            it->second,
+            max_threads_per_block,
+            min_blocks_per_multiprocessor,
+            num_vertices_per_cell,
+            num_coordinates_per_vertex,
+            num_dofs_per_cell0,
+            num_dofs_per_cell1,
+            _form->coefficient_offsets().back(),
+            assembly_kernel_type,
+            false,
+            false,
+            name);
+        integrals_for_type[i].set_kernels(std::move(assembly_module), name);
+      }
+    }
     _compiled = true;
   }
 
@@ -199,7 +261,7 @@ private:
   // Compiled CUDA kernels
   std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>> _integrals;
   // CUDA tabulate tensors 
-  std::array<std::map<int, std::pair<std::string, std::string>>, 4> _cuda_integrals;
+  std::array<std::map<int, std::pair<std::string, std::string>>, 4> _cuda_kernel_sources;
   bool _compiled;
   Form<T,U>* _form;
   ufcx_form* _ufcx_form;
