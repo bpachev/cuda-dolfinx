@@ -4,7 +4,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import datetime
-import sys
+
 import cudolfinx
 
 # -- Project information -----------------------------------------------------

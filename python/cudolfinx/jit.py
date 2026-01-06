@@ -4,13 +4,19 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""Routines for manipulating generated FFCX code
-"""
+"""Routines for manipulating generated FFCX code."""
 
-from dolfinx import fem, cpp
-import numpy as np
 import pathlib
-from typing import *
+from typing import Any
+
+import numpy as np
+
+from dolfinx import fem
+
+__all__ = [
+    "get_tabulate_tensor_sources",
+    "get_wrapped_tabulate_tensors",
+]
 
 def get_tabulate_tensor_sources(form: fem.Form):
     """Given a compiled fem.Form, extract the C source code of the tabulate tensors
@@ -20,7 +26,7 @@ def get_tabulate_tensor_sources(form: fem.Form):
     source_filename = module_file.name.split(".")[0] + ".c"
     source_file = module_file.parent.joinpath(source_filename)
     if not source_file.is_file():
-        raise IOError("Could not find generated ffcx source file '{source_file}'!")
+        raise OSError("Could not find generated ffcx source file '{source_file}'!")
 
     tabulate_tensors = []
     parsing_tabulate = False
@@ -38,8 +44,10 @@ def get_tabulate_tensor_sources(form: fem.Form):
                     parsing_header = False
                     bracket_count += 1
             elif parsing_tabulate:
-                if line.startswith("{"): bracket_count += 1
-                elif line.startswith("}"): bracket_count -= 1
+                if line.startswith("{"):
+                    bracket_count += 1
+                elif line.startswith("}"):
+                    bracket_count -= 1
                 if not bracket_count:
                     tabulate_tensors.append((tabulate_id, "".join(tabulate_body)))
                     parsing_tabulate = False
@@ -60,11 +68,11 @@ def get_tabulate_tensor_sources(form: fem.Form):
 cuda_tabulate_tensor_header = """
     #define alignas(x)
     #define restrict __restrict__
-    
+
     typedef unsigned char uint8_t;
     typedef unsigned int uint32_t;
     typedef double ufc_scalar_t;
-    
+
     extern "C" __global__
     void tabulate_tensor_{factory_name}({scalar_type}* restrict A,
                                         const {scalar_type}* restrict w,
@@ -84,7 +92,7 @@ def _convert_dtype_to_str(dtype: Any):
     elif dtype == np.float64:
         return "double"
     else:
-        raise TypeError(f"Unsupported dtype: '{dtype}'")    
+        raise TypeError(f"Unsupported dtype: '{dtype}'")
 
 def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
     """Given a fem.Form, wrap the tabulate tensors for use on a GPU

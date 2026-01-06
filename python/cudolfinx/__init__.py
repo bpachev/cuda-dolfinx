@@ -6,17 +6,17 @@
 
 """Main module for cuDOLFINx"""
 
+from importlib.metadata import version
+
 from cudolfinx.assemble import CUDAAssembler
 from cudolfinx.form import form
 from cudolfinx.mesh import ghost_layer_mesh, ghost_layer_meshtags
 
-from importlib.metadata import version
-
 __version__ = version("fenics-cudolfinx")
 
 __all__ = [
-    "form",
     "CUDAAssembler",
+    "form",
     "ghost_layer_mesh",
     "ghost_layer_meshtags"
 ]

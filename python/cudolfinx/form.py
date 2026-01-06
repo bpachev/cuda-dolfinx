@@ -3,21 +3,31 @@
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Methods for copying finite element form data to the GPU."""
 
 import collections
-from cudolfinx.context import get_cuda_context
-from cudolfinx import cpp as _cucpp, jit
-from dolfinx import fem as fe
-from dolfinx import cpp as _cpp
 import functools
+import typing
+
 import numpy as np
-import typing 
+
 import ufl
+from cudolfinx import cpp as _cucpp
+from cudolfinx import jit
+from cudolfinx.context import get_cuda_context
+from dolfinx import cpp as _cpp
+from dolfinx import fem as fe
+
+__all__ = [
+    "BlockCUDAForm",
+    "CUDAForm",
+    "form",
+]
 
 class CUDAForm:
     """CUDA wrapper class for a dolfinx.fem.Form
     """
-    
+
     def __init__(self, form: fe.Form):
         """Initialize the wrapper
         """
@@ -26,8 +36,14 @@ class CUDAForm:
         self._cuda_mesh = _create_mesh_on_device(form.mesh)
 
         self._dolfinx_form = form
-        self._wrapped_tabulate_tensors, self._integral_tensor_indices = jit.get_wrapped_tabulate_tensors(form)
-        ufcx_form_addr = form.module.ffi.cast("uintptr_t", form.module.ffi.addressof(form.ufcx_form))
+        (
+            self._wrapped_tabulate_tensors,
+            self._integral_tensor_indices,
+        ) = jit.get_wrapped_tabulate_tensors(form)
+        ufcx_form_addr = form.module.ffi.cast(
+            "uintptr_t",
+            form.module.ffi.addressof(form.ufcx_form)
+        )
 
         cpp_form = form._cpp_object
         if type(cpp_form) is _cpp.fem.Form_float32:
@@ -44,16 +60,20 @@ class CUDAForm:
             _tabulate_tensor_sources.append(source)
 
         self._cuda_form = form_cls(
-                self._ctx,
-                cpp_form,
-                ufcx_form_addr,
-                _tabulate_tensor_names,
-                _tabulate_tensor_sources,
-                self._integral_tensor_indices
+            self._ctx,
+            cpp_form,
+            ufcx_form_addr,
+            _tabulate_tensor_names,
+            _tabulate_tensor_sources,
+            self._integral_tensor_indices
         )
 
         # TODO expose these parameters to the user
-        self._cuda_form.compile(self._ctx, max_threads_per_block=1024, min_blocks_per_multiprocessor=1)
+        self._cuda_form.compile(
+            self._ctx,
+            max_threads_per_block=1024,
+            min_blocks_per_multiprocessor=1
+        )
 
     def to_device(self):
         """Copy host-side coefficients and constants to the device
@@ -104,9 +124,12 @@ class BlockCUDAForm:
         self._forms = forms
         self._restrictions = restrictions
 
-        if not len(forms): raise ValueError("Must provide at least one form!")
-        if type(forms[0]) is CUDAForm: self._init_vector()
-        else: self._init_matrix()
+        if not len(forms):
+            raise ValueError("Must provide at least one form!")
+        if type(forms[0]) is CUDAForm:
+            self._init_vector()
+        else:
+            self._init_matrix()
 
     def _get_restriction_offsets(self, forms, restrictions=None):
         """Get a list of offsets and restriction indices."""
@@ -136,10 +159,13 @@ class BlockCUDAForm:
         # create offsets that can be directly added to the local index of the ghost
         # hence the need to subtract out the local size as the CUDADofMap doesn't know how many
         # restricted dofs are acutally local
-        # TODO just reimplement RestrictedDofMap from multiphenicsx instead of all this dancing around
-        ghost_offsets = [offsets[-1] + ghost_offset - local_size for ghost_offset,local_size in zip(ghost_offsets, local_sizes)]
+        # TODO just reimplement RestrictedDofMap from multiphenicsx
+        ghost_offsets = [
+            offsets[-1] + ghost_offset - local_size
+            for ghost_offset,local_size in zip(ghost_offsets, local_sizes)
+        ]
         return restriction_inds_list, offsets, ghost_offsets
-        
+
 
     def _init_vector(self):
         """Initialize vector form."""
@@ -147,7 +173,9 @@ class BlockCUDAForm:
         # don't need ghost offsets for vector assembly
         restriction_inds_list, self._offsets, ghost_offsets = self._get_restriction_offsets(
             self._forms, self._restrictions)
-        for form, offset, ghost_offset, restriction_inds in zip(self._forms, self._offsets, ghost_offsets, restriction_inds_list):
+        for form, offset, ghost_offset, restriction_inds in zip(
+                self._forms, self._offsets, ghost_offsets, restriction_inds_list
+            ):
             form.cuda_form.set_restriction(
                 [offset], [ghost_offset], [restriction_inds]
             )
@@ -160,7 +188,7 @@ class BlockCUDAForm:
 
         row_forms = [row[0] for row in self._forms]
         col_forms = self._forms[0]
-        
+
         row_restrictions, row_offsets, row_ghost_offsets = self._get_restriction_offsets(
             row_forms, self._restrictions[0] if self._restrictions is not None else None
         )
@@ -168,7 +196,7 @@ class BlockCUDAForm:
         col_restrictions, col_offsets, col_ghost_offsets = self._get_restriction_offsets(
             col_forms, self._restrictions[1] if self._restrictions is not None else None
         )
-  
+
         # restrict forms appropriately
         for i, row in enumerate(self._forms):
             for j, form in enumerate(row):
@@ -223,13 +251,16 @@ def form(
         elif isinstance(form, collections.abc.Iterable):
             return list(map(lambda sub_form: _create_form(sub_form), form))
         else:
-            raise TypeError("Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!")
+            raise TypeError(
+                f"Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!"
+            )
 
     cuda_form = _create_form(form)
     # TODO: properly handle restriction for a single form
     if isinstance(form, collections.abc.Iterable):
         return BlockCUDAForm(cuda_form, restriction)
-    else: return cuda_form
+    else:
+        return cuda_form
 
 # Cache this so we don't create multiple copies of the same CUDAMesh
 @functools.cache

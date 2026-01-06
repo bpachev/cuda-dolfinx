@@ -4,7 +4,14 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
+"""Wrapper classes for CUDA matrices and vectors."""
+
 from cudolfinx import cpp as _cucpp
+
+__all__ = [
+  "CUDAMatrix",
+  "CUDAVector",
+]
 
 class CUDAVector:
   """Vector on device
@@ -60,7 +67,7 @@ class CUDAMatrix:
   def assemble(self):
     """Call assemble on the underlying PETSc matrix.
 
-    If the PETSc matrix is not a CUDA matrix, then matrix 
+    If the PETSc matrix is not a CUDA matrix, then matrix
     values will be explicitly copied to the host.
     """
 
@@ -72,5 +79,5 @@ class CUDAMatrix:
 
     # make sure we delete the CUDAMatrix before the petsc matrix
     del self._cpp_object
-   
+
 
