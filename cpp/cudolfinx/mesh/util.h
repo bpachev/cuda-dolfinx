@@ -71,8 +71,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   std::array<std::size_t, 2> xshape = {num_vertices, 3};
   std::span<const T> x(mesh.geometry().x().data(), xshape[0] * xshape[1]);
 
-  auto dofmap = mesh.geometry().dofmap();
-  auto imap = mesh.geometry().index_map();
   // TODO figure how to properly support both tensor product elements
   // and regular elements
   /*std::vector<std::int32_t> permuted_dofmap;
@@ -99,8 +97,7 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
       input_dofmap.push_back(v);
   }
   std::vector<std::int64_t> input_dofmap_global(input_dofmap.size());
-  // TODO should we be using the geometry index map, or the vertex topology one?
-  imap->local_to_global(input_dofmap, input_dofmap_global);
+  mesh.topology()->index_map(0)->local_to_global(input_dofmap, input_dofmap_global);
   auto new_mesh
       = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
 		                   mesh.comm(), x, xshape, partitioner);
