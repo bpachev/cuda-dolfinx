@@ -29,7 +29,7 @@ namespace fem {
 /// affected by Dirichlet boundary conditions, with data being stored
 /// in the device memory of a CUDA device.
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 class CUDADirichletBC
 {
 public:

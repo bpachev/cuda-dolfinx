@@ -49,10 +49,11 @@ dolfinx::la::SparsityPattern compute_restricted_sparsity_pattern(std::shared_ptr
   la::SparsityPattern pattern(mesh->comm(), index_maps, bs);
 
   for (auto integral_type : form->integral_types()) {
-    std::vector<int> ids = form->integral_ids(integral_type);
+    // TODO: fully support mixed-topology once it becomes mature
+    int num_integrals = form->num_integrals(integral_type, 0);
     if (integral_type == dolfinx::fem::IntegralType::interior_facet) {
-      for (auto id: ids) {
-        auto entities = form->domain(integral_type, id);
+      for (int idx = 0; idx < num_integrals; idx++) {
+        auto entities = form->domain(integral_type, idx, 0);
         for (std::size_t i = 0; i < entities.size(); i+=4) {
           int cell0 = entities[i];
           int cell1 = entities[i+2];
@@ -72,8 +73,8 @@ dolfinx::la::SparsityPattern compute_restricted_sparsity_pattern(std::shared_ptr
     }
     else {
       int increment = (integral_type == dolfinx::fem::IntegralType::exterior_facet) ? 2 : 1;
-      for (auto id: ids) {
-        auto entities = form->domain(integral_type, id);
+      for (int idx = 0; idx < num_integrals; idx++) {
+        auto entities = form->domain(integral_type, idx, 0);
         for (std::size_t i = 0; i < entities.size(); i+=increment) {
           int cell = entities[i];
           auto cell_dofs0 = std::span(restricted_cell_dofs[0].data() + restricted_cell_bounds[0][cell],

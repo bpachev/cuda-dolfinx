@@ -33,7 +33,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   // Map from any local cells to processes where they should be ghosted
   std::map<int, std::vector<int>> cell_to_dests;
   auto c_to_v = mesh.topology()->connectivity(tdim, 0);
-
   std::vector<int> cdests;
   for (std::size_t c = 0; c < ncells; ++c)
   {
@@ -49,8 +48,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
     if (!cdests.empty())
       cell_to_dests[c] = cdests;
   }
-
-  spdlog::info("cell_to_dests= {}, ncells = {}", cell_to_dests.size(), ncells);
   auto partitioner
       = [cell_to_dests, ncells](MPI_Comm comm, int nparts,
                                 const std::vector<dolfinx::mesh::CellType>& cell_types,
@@ -70,7 +67,6 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
     }
     return dolfinx::graph::AdjacencyList<std::int32_t>(std::move(dests), std::move(offsets));
   };
-
   // The number of coordinates per vertex is ALWAYS 3, even for two-dimensional meshes
   std::array<std::size_t, 2> xshape = {num_vertices, 3};
   std::span<const T> x(mesh.geometry().x().data(), xshape[0] * xshape[1]);
@@ -95,13 +91,15 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   auto new_mesh
       = dolfinx::mesh::create_mesh(mesh.comm(), mesh.comm(), std::span(permuted_dofmap_global),
                                    coord_element, mesh.comm(), x, xshape, partitioner);*/
+  // the problem is that the geometry no longer distinguishes between ghost and non-ghost elements
+  // so we need to use the topology to get the local cell-to-vertex map, not the geometry dofmap 
   std::vector<std::int32_t> input_dofmap;
-  for (std::size_t c = 0; c < dofmap.extent(0); ++c) {
-    auto cell_dofs = std::submdspan(dofmap, c, std::full_extent);
-    for (int i = 0; i < dofmap.extent(1); ++i)
-      input_dofmap.push_back(cell_dofs(i));
+  for (std::size_t c = 0; c < ncells; ++c) {
+    for (auto v : c_to_v->links(c))
+      input_dofmap.push_back(v);
   }
   std::vector<std::int64_t> input_dofmap_global(input_dofmap.size());
+  // TODO should we be using the geometry index map, or the vertex topology one?
   imap->local_to_global(input_dofmap, input_dofmap_global);
   auto new_mesh
       = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
@@ -287,9 +285,9 @@ dolfinx::mesh::MeshTags<T> ghost_layer_meshtags(dolfinx::mesh::MeshTags<T>& mesh
 				recv_disp.data(), MPI_INT64_T, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
   ierr = MPI_Neighbor_alltoallv(tags_send_buffer.data(), send_sizes.data(),
-                                send_disp.data(), dolfinx::MPI::mpi_type<T>(),
+                                send_disp.data(), dolfinx::MPI::mpi_t<T>,
                                 tags_recv_buffer.data(), recv_sizes.data(),
-                                recv_disp.data(), dolfinx::MPI::mpi_type<T>(), neigh_comm);
+                                recv_disp.data(), dolfinx::MPI::mpi_t<T>, neigh_comm);
   dolfinx::MPI::check_error(comm, ierr);
 
   // Ensure entities/values are sorted before creating new MeshTags object

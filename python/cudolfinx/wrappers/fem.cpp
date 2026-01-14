@@ -69,7 +69,7 @@ void declare_meshtags(nb::module_& m)
 template <typename T>
 void declare_cuda_templated_objects(nb::module_& m, std::string type)
 {
-  using U = typename dolfinx::scalar_value_type_t<T>;
+  using U = typename dolfinx::scalar_value_t<T>;
 
   std::string pyclass_name = std::string("CUDAForm_") + type;
   nb::class_<dolfinx::fem::CUDAForm<T,U>>(m, pyclass_name.c_str(), "Form on GPU")
@@ -97,11 +97,15 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
       .def(
           "compile",
           [](dolfinx::fem::CUDAForm<T,U>& cf, const dolfinx::CUDA::Context& cuda_context,
-             int32_t max_threads_per_block, int32_t min_blocks_per_multiprocessor)
+             int32_t max_threads_per_block, int32_t min_blocks_per_multiprocessor,
+	     std::string cachedir)
              {
                cf.compile(cuda_context, max_threads_per_block,
-                          min_blocks_per_multiprocessor, dolfinx::fem::assembly_kernel_type::ASSEMBLY_KERNEL_GLOBAL);
-             }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"))
+                          min_blocks_per_multiprocessor, cachedir,
+			  dolfinx::fem::assembly_kernel_type::ASSEMBLY_KERNEL_GLOBAL);
+             }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"),
+	     nb::arg("cachedir")
+	     )
       .def(
           "set_restriction",
 	  [](dolfinx::fem::CUDAForm<T,U>& cf, std::vector<int32_t> offsets,

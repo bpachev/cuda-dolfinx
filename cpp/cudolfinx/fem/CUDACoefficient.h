@@ -13,7 +13,7 @@ namespace dolfinx::fem
 {
 /// @brief a wrapper around a Function
 template <dolfinx::scalar T,
-          std::floating_point U = dolfinx::scalar_value_type_t<T>>
+          std::floating_point U = dolfinx::scalar_value_t<T>>
 class CUDACoefficient
 {
 public:

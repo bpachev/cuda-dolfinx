@@ -24,6 +24,8 @@
 #include <cudolfinx/la/CUDAVector.h>
 #include <cudolfinx/mesh/CUDAMesh.h>
 #include <cudolfinx/mesh/CUDAMeshEntities.h>
+#include <fstream>
+#include <filesystem>
 
 using namespace dolfinx;
 using namespace dolfinx::fem;
@@ -2361,13 +2363,11 @@ void dolfinx::fem::launch_assembly_kernel(const CUDA::Context& cuda_context, CUf
 
 //-----------------------------------------------------------------------------
 
-/// Compile assembly kernel for a form integral
-CUDA::Module dolfinx::fem::compile_form_integral_kernel(
-  const CUDA::Context& cuda_context,
-  CUjit_target target,
+std::string dolfinx::fem::get_form_integral_kernel_src(
   int form_rank,
   IntegralType integral_type,
   std::pair<std::string, std::string> tabulate_tensor_source,
+  std::string factory_name,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
   int32_t num_vertices_per_cell,
@@ -2375,26 +2375,13 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
   int32_t num_dofs_per_cell0,
   int32_t num_dofs_per_cell1,
   int32_t num_coeffs_per_cell,
-  enum assembly_kernel_type assembly_kernel_type,
-  bool debug,
-  const char* cudasrcdir,
-  bool verbose,
-  std::string& factory_name)
+  enum assembly_kernel_type assembly_kernel_type
+)
 {
-  // Obtain the automatically generated CUDA C++ code for the
-  // element matrix kernel (tabulate_tensor).
-  int num_program_headers = 0;
-  const char** program_headers = NULL;
-  const char** program_include_names = NULL;
-  const char* tabulate_tensor_src = tabulate_tensor_source.second.c_str();
-  const char* tabulate_tensor_function_name = tabulate_tensor_source.first.c_str();
+  std::string tabulate_tensor_function_name = tabulate_tensor_source.first;
+  std::string tabulate_tensor_src = tabulate_tensor_source.second;
   // Generate CUDA C++ code for the assembly kernel
-  // extract the factory/integral name from the tabulate tensor name
-  factory_name = std::string(tabulate_tensor_function_name);
-  std::string pref = std::string("tabulate_tensor");
-  if ((factory_name.find(pref) == 0) && (factory_name.length() > pref.length())) {
-    factory_name = factory_name.replace(0, pref.length(), std::string(""));
-  }
+
 
   std::string assembly_kernel_name =
     std::string("assemble_") + std::string(factory_name);
@@ -2414,7 +2401,7 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
   }
 
   std::string assembly_kernel_src =
-    std::string(tabulate_tensor_src) + "\n"
+    tabulate_tensor_src + "\n"
     "typedef int int32_t;\n"
     "typedef long long int int64_t;\n"
     "\n";
@@ -2478,17 +2465,84 @@ CUDA::Module dolfinx::fem::compile_form_integral_kernel(
       "at " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
   }
 
-  // Configure compiler options
-  int num_compile_options;
-  const char** compile_options =
-    nvrtc_compiler_options(&num_compile_options, target, debug);
+  return assembly_kernel_src;
+}
 
-  // Compile CUDA C++ code to PTX assembly
-  const char* program_name = factory_name.c_str();
-  std::string ptx = CUDA::compile_cuda_cpp_to_ptx(
-    program_name, num_program_headers, program_headers,
-    program_include_names, num_compile_options, compile_options,
-    assembly_kernel_src.c_str(), cudasrcdir, verbose);
+/// Compile assembly kernel for a form integral
+CUDA::Module dolfinx::fem::compile_form_integral_kernel(
+  const CUDA::Context& cuda_context,
+  std::string cachedir,
+  CUjit_target target,
+  int form_rank,
+  IntegralType integral_type,
+  std::pair<std::string, std::string> tabulate_tensor_source,
+  int32_t max_threads_per_block,
+  int32_t min_blocks_per_multiprocessor,
+  int32_t num_vertices_per_cell,
+  int32_t num_coordinates_per_vertex,
+  int32_t num_dofs_per_cell0,
+  int32_t num_dofs_per_cell1,
+  int32_t num_coeffs_per_cell,
+  enum assembly_kernel_type assembly_kernel_type,
+  bool debug,
+  bool verbose,
+  std::string& factory_name)
+{
+  std::string ptx;
+  factory_name = tabulate_tensor_source.first;
+  // extract the factory/integral name from the tabulate tensor name
+  std::string pref = std::string("tabulate_tensor");
+  if ((factory_name.find(pref) == 0) && (factory_name.length() > pref.length())) {
+    factory_name = factory_name.replace(0, pref.length(), std::string(""));
+  }
+
+  auto ptxfile = std::filesystem::path(cachedir) / (factory_name + ".ptx");
+  if (!std::filesystem::exists(ptxfile)) {
+    
+    std::string assembly_kernel_src = get_form_integral_kernel_src(
+      form_rank, integral_type, tabulate_tensor_source, factory_name, max_threads_per_block,
+      min_blocks_per_multiprocessor, num_vertices_per_cell, num_coordinates_per_vertex,
+      num_dofs_per_cell0, num_dofs_per_cell1, num_coeffs_per_cell,
+      assembly_kernel_type
+    );
+
+    // Obtain the automatically generated CUDA C++ code for the
+    // element matrix kernel (tabulate_tensor).
+    int num_program_headers = 0;
+    const char** program_headers = NULL;
+    const char** program_include_names = NULL;
+
+    // Configure compiler options
+    int num_compile_options;
+    const char** compile_options =
+      nvrtc_compiler_options(&num_compile_options, target, debug);
+
+    // Compile CUDA C++ code to PTX assembly
+    const char* program_name = factory_name.c_str();
+    const char* cudasrcdir = cachedir.c_str();
+    ptx = CUDA::compile_cuda_cpp_to_ptx(
+      program_name, num_program_headers, program_headers,
+      program_include_names, num_compile_options, compile_options,
+      assembly_kernel_src.c_str(), cudasrcdir, verbose);
+
+    std::ofstream file(ptxfile);
+    if (!file) {
+      throw std::runtime_error("Cannot write ptx file to cache: " + std::string(ptxfile));
+    }
+
+    file << ptx;
+
+    file.close();
+  }
+  else {
+    std::ifstream file(ptxfile);
+    if (!file) {
+      throw std::runtime_error("Cannot open CUDA ptx file: " + std::string(ptxfile));
+    }
+    ptx.assign((std::istreambuf_iterator<char>(file)),
+                     (std::istreambuf_iterator<char>()));
+    file.close();
+  }
 
   // Load the PTX assembly as a module
   int num_module_load_options = 0;
@@ -2545,17 +2599,5 @@ std::string dolfinx::fem::cuda_kernel_binary_search(void)
     "  *out_index = r;\n"
     "  return 0;\n"
     "}\n";
-}
-//-----------------------------------------------------------------------------
-std::pair<std::string, std::string> dolfinx::fem::get_cuda_wrapper(
-  std::array<std::map<int, std::pair<std::string, std::string>>, 4>& cuda_wrappers,
-  IntegralType integral_type,
-  int id)
-{
-  auto integrals = cuda_wrappers[static_cast<std::size_t>(integral_type)];
-  auto it = integrals.find(id);
-  if (it == integrals.end())
-    throw std::runtime_error("No kernel for requested domain index.");
-  return it->second;
 }
 //-----------------------------------------------------------------------------

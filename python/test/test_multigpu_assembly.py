@@ -87,7 +87,7 @@ def test_multigpu_assembly():
     for form1, form2 in zip(regular_ufl['vector'], ghosted_ufl['vector']):
         form1 = fe.form(form1)
         form2 = cufem.form(form2)
-        regular_vec = fe_petsc.create_vector(form1)
+        regular_vec = fe_petsc.create_vector(form1.function_spaces[0])
         with regular_vec.localForm() as loc:
             loc.set(0)
         fe_petsc.assemble_vector(regular_vec, form1)
