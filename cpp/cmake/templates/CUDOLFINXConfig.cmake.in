@@ -10,14 +10,6 @@ include(CMakeFindDependencyMacro)
 find_dependency(MPI REQUIRED)
 find_dependency(pugixml)
 
-# Check for Boost
-if(DEFINED ENV{BOOST_ROOT} OR DEFINED BOOST_ROOT)
-  set(Boost_NO_SYSTEM_PATHS on)
-endif()
-set(Boost_USE_MULTITHREADED $ENV{BOOST_USE_MULTITHREADED})
-set(Boost_VERBOSE TRUE)
-find_dependency(Boost 1.70 REQUIRED COMPONENTS timer filesystem)
-
 if(@ufcx_FOUND@)
   find_dependency(ufcx)
 endif()

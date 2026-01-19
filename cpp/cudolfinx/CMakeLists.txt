@@ -73,10 +73,6 @@ endif()
 # Basix
 target_link_libraries(cudolfinx PUBLIC Basix::basix)
 
-# Boost
-target_link_libraries(cudolfinx PUBLIC Boost::headers)
-target_link_libraries(cudolfinx PUBLIC Boost::timer)
-
 # MPI
 target_link_libraries(cudolfinx PUBLIC MPI::MPI_CXX)
 
@@ -198,16 +194,6 @@ foreach(_target ${PKGCONFIG_CUDOLFINX_TARGET_LINK_LIBRARIES})
       list(APPEND PKGCONFIG_CUDOLFINX_LIBS ${_target})
     endif()
 
-    # Special handling for compiled Boost imported targets
-    if(("${_target}" MATCHES "^.*Boost::.*$") AND NOT "${_target}" STREQUAL
-                                                  "Boost::headers"
-    )
-      get_target_property(_libs ${_target} IMPORTED_LOCATION_RELEASE)
-
-      if(_libs)
-        list(APPEND PKGCONFIG_CUDOLFINX_LIBS ${_libs})
-      endif()
-    endif()
   endif()
 endforeach()
 

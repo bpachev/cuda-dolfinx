@@ -1,23 +1,25 @@
-FROM nvcr.io/nvidia/nvhpc:24.9-devel-cuda12.6-ubuntu24.04 as cudolfinx-dev-env
+ARG BASEIMAGE=nvcr.io/nvidia/nvhpc:24.9-devel-cuda12.6-ubuntu24.04
 
-ARG ADIOS2_VERSION=2.10.2
-ARG DOXYGEN_VERSION=1_13_2
-ARG GMSH_VERSION=4_13_1
-ARG HDF5_VERSION=1.14.6
-ARG KAHIP_VERSION=3.18
+FROM ${BASEIMAGE} as cudolfinx-dev-env
+ARG ADIOS2_VERSION=2.11.0
+ARG DOXYGEN_VERSION=1_14_0
+ARG GMSH_VERSION=4_15_0
+ARG HDF5_VERSION=2.0.0
+ARG KAHIP_VERSION=3.21
 # NOTE: The NumPy version (https://pypi.org/project/numpy/#history)
 # should be pinned to the most recent NumPy release that is supported by
 # the most recent Numba release, see
 # https://numba.readthedocs.io/en/stable/user/installing.html#version-support-information
-ARG NUMPY_VERSION=2.1.3
-ARG PETSC_VERSION=3.22.4
-ARG SLEPC_VERSION=3.22.2
-ARG SPDLOG_VERSION=1.15.1
+ARG NUMPY_VERSION=2.3.5
+ARG PETSC_VERSION=3.24.2
+ARG SLEPC_VERSION=3.24.1
+ARG SPDLOG_VERSION=1.16.0
 
-ARG MPICH_VERSION=4.2.3
+ARG MPICH_VERSION=4.3.2
 ARG OPENMPI_SERIES=5.0
-ARG OPENMPI_PATCH=7
-
+ARG OPENMPI_PATCH=8
+# CMake build type for DOLFINx C++ build. See CMake documentation.
+ARG DOLFINX_CMAKE_BUILD_TYPE="Release"
 ########################################
 
 LABEL maintainer="Benjamin Pachev <benjaminpachev@gmail.com>"
@@ -143,10 +145,17 @@ ENV VIRTUAL_ENV=/dolfinx-env
 ENV PATH=/dolfinx-env/bin:$PATH
 RUN python3 -m venv ${VIRTUAL_ENV}
 
+# Prepending /usr/local to paths is needed to make the correct version of MPI be used (not the one that comes with NVHPC)
+# Since this container doesn't currently install GPU aware MPI, PETSc needs the gpu aware MPI option turned off
+# TODO: fix the base container to install GPU-aware MPI
+ENV PETSC_OPTIONS="-use_gpu_aware_mpi 0" \
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
+    PATH=/usr/local/bin:$PATH
+
 # Install Python packages (via pip)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir cython numpy==${NUMPY_VERSION} && \
-    CFLAGS="-noswitcherror" pip install --no-cache-dir mpi4py
+    pip install --no-cache-dir mpi4py
 
 # Install KaHIP
 RUN wget -nc --quiet https://github.com/kahip/kahip/archive/v${KAHIP_VERSION}.tar.gz && \
@@ -189,7 +198,7 @@ ENV PYTHONPATH=/usr/local/lib:$PYTHONPATH
 
 # Install PETSc and petsc4py with real and complex types
 ENV PETSC_DIR=/usr/local/petsc SLEPC_DIR=/usr/local/slepc
-RUN ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/24.9/cuda/lib64/stubs/libcuda.so /opt/nvidia/hpc_sdk/Linux_x86_64/24.9/cuda/lib64/stubs/libcuda.so.1
+RUN ln -sf $(dirname $(which nvcc))/../../cuda/lib64/stubs/libcuda.so $(dirname $(which nvcc))/../../cuda/lib64/stubs/libcuda.so.1
 RUN apt-get -qq update && \
     apt-get -y install bison flex && \
     git clone --depth=1 -b v${PETSC_VERSION} https://gitlab.com/petsc/petsc.git ${PETSC_DIR} && \
@@ -219,7 +228,7 @@ RUN apt-get -qq update && \
 
     # Install petsc4py
 RUN cd ${PETSC_DIR}/src/binding/petsc4py && \
-    PETSC_ARCH=linux-gnu-real64-32-cuda CFLAGS="-noswitcherror" pip -v install --no-cache-dir --no-build-isolation . && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda pip -v install --no-cache-dir --no-build-isolation . && \
     # Cleanup
     apt-get -y purge bison flex && \
     apt-get -y autoremove && \
@@ -236,6 +245,64 @@ RUN cd ${PETSC_DIR}/src/binding/petsc4py && \
     ${PETSC_DIR}/src/ \
     ${PETSC_DIR}/systems/ \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+
+
+# Install SLEPc
+RUN git clone --depth=1 -b v${SLEPC_VERSION} https://gitlab.com/slepc/slepc.git ${SLEPC_DIR} && \
+    cd ${SLEPC_DIR} && \
+    export PETSC_ARCH=linux-gnu-real64-32-cuda && \
+    ./configure && \
+    make && \
+    # Install slepc4py
+    cd src/binding/slepc4py && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda pip -v install --no-cache-dir --no-build-isolation . && \
+    rm -rf ${SLEPC_DIR}/CTAGS ${SLEPC_DIR}/TAGS ${SLEPC_DIR}/docs ${SLEPC_DIR}/src/ ${SLEPC_DIR}/**/obj/ ${SLEPC_DIR}/**/test/ && \
+    rm -rf /tmp/*
+
+RUN git clone --depth 1 --branch v0.10.0.post5 https://github.com/FEniCS/dolfinx.git
+RUN git clone --depth 1 --branch v0.10.0 https://github.com/FEniCS/ffcx.git 
+RUN git clone --depth 1 --branch v0.10.0 https://github.com/FEniCS/basix.git
+RUN git clone --depth 1 --branch 2025.2.0 https://github.com/FEniCS/ufl.git
+
+RUN cp dolfinx/docker/dolfinx-real-mode /usr/local/bin/dolfinx-real-mode
+RUN chmod +x /usr/local/bin/dolfinx-*-mode
+
+
+# Using pip install `.[test]` with --no-dependencies and --no-build-isolation
+# does not install necessary packages, hence install build and optional
+# dependencies manually here.
+RUN pip install --no-cache-dir -r dolfinx/python/build-requirements.txt && \
+            pip install --no-cache-dir pyamg pytest scipy matplotlib numba # test + optional set
+
+RUN cd basix && cmake -G Ninja -DCMAKE_BUILD_TYPE=${DOLFINX_CMAKE_BUILD_TYPE} -B build-dir -S ./cpp && \
+    cmake --build build-dir && \
+    cmake --install build-dir && \
+    pip install ./python && \
+    cd ../ufl && pip install --no-cache-dir . && \
+    cd ../ffcx && pip install --no-cache-dir . && \
+    cd ../ && pip install --no-cache-dir ipython
+
+ARG PYTHON_VERSION=3.12
+
+# --no-dependencies necessary as --target does not contain any dependencies e.g.
+# mpi4py - leading to unwanted rebuild.
+RUN cd dolfinx && \
+    mkdir -p build-real && \
+    cd build-real && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda cmake -G Ninja -DCMAKE_INSTALL_PREFIX=/usr/local/dolfinx-real -DMPI_C_COMPILER=/usr/local/bin/mpicc -DMPI_CXX_COMPILER=/usr/local/bin/mpicxx -DCMAKE_BUILD_TYPE="Release" -DDOLFINX_ENABLE_SCOTCH=ON -DDOLFINX_ENABLE_KAHIP=ON -DHDF5_ENABLE_PARALLEL=ON -DDOLFINX_ENABLE_PETSC=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ../cpp && \
+    ninja install && \
+    cd ../python && \
+    PETSC_ARCH=linux-gnu-real64-32-cuda CMAKE_ARGS="-DMPI_C_COMPILER=/usr/local/bin/mpicc -DMPI_CXX_COMPILER=/usr/local/bin/mpicxx -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DHDF5_ENABLE_PARALLEL=ON" pip -v install \
+      --config-settings=cmake.build-type="${DOLFINX_CMAKE_BUILD_TYPE}" --config-settings=install.strip=false --no-build-isolation --check-build-dependencies \
+      --target /usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages --no-dependencies --no-cache-dir '.'  
+
+# Currently cuDOLFINX only supports real mode, as the CUDA version of PETSc appears to not compile with complex types . . . . 
+ENV PKG_CONFIG_PATH=/usr/local/dolfinx-real/lib/pkgconfig:$PKG_CONFIG_PATH \
+    CMAKE_PREFIX_PATH=/usr/local/dolfinx-real/lib/cmake:$CMAKE_PREFIX_PATH \
+    PETSC_ARCH=linux-gnu-real64-32-cuda \
+    PYTHONPATH=/usr/local/dolfinx-real/lib/python${PYTHON_VERSION}/dist-packages:$PYTHONPATH \
+    LD_LIBRARY_PATH=/usr/local/dolfinx-real/lib:$LD_LIBRARY_PATH
 
 WORKDIR /root
 

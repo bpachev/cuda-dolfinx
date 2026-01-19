@@ -24,7 +24,7 @@ petsc_vec = vec.vector()
 
 # Dependencies
 
-- dolfinx 0.9.0
+- dolfinx 0.10.0
 - PETSc with CUDA support
 - CUDA Toolkit 12.x
 
@@ -37,13 +37,13 @@ There are three ways to do the install, in increasing order of difficulty. Curre
 Using Docker is by far the easiest approach.
 
 ```
-docker run --gpus all -it benpachev/cudolfinx:v0.9.0-cuda12.6
+docker run --gpus all -it benpachev/cudolfinx:v0.10.0-cuda12.6
 ```
 You may experience errors with the prebuilt container due to CUDA Toolkit or MPI version mismatch between the host and container. In this case, the Dockerfiles in `docker/` can be modified to use a different CUDA Toolkit version or MPI version to build a container that will work with your system. Note that on HPC systems, Docker is not available, but Docker containers can be converted to Apptainer/Singularity containers.
 
 ```
-apptainer pull docker://benpachev/cudolfinx:v0.9.0-cuda12.6
-apptainer run --nv cudolfinx_v0.9.0-cuda12.6.sif
+apptainer pull docker://benpachev/cudolfinx:v0.10.0-cuda12.6
+apptainer run --nv cudolfinx_v0.10.0-cuda12.6.sif
 ```
 
 ## Spack

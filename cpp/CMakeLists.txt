@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.19)
 
 # ------------------------------------------------------------------------------
 # Set project name and version number
-project(CUDOLFINX VERSION "0.9.0")
+project(CUDOLFINX VERSION "0.10.0")
 
 set(DOXYGEN_CUDOLFINX_VERSION
     ${CUDOLFINX_VERSION}
@@ -160,24 +160,6 @@ endif()
 # ------------------------------------------------------------------------------
 # Find required packages
 
-# pugixml
-find_package(pugixml REQUIRED)
-
-# Note: When updating Boost version, also update CUDOLFINXCongif.cmake.in
-if(DEFINED ENV{BOOST_ROOT} OR DEFINED BOOST_ROOT)
-  set(Boost_NO_SYSTEM_PATHS on)
-endif()
-
-set(Boost_USE_MULTITHREADED $ENV{BOOST_USE_MULTITHREADED})
-set(Boost_VERBOSE TRUE)
-find_package(Boost 1.70 REQUIRED timer)
-set_package_properties(
-  Boost PROPERTIES
-  TYPE REQUIRED
-  DESCRIPTION "Boost C++ libraries"
-  URL "http://www.boost.org"
-)
-
 # Use Python for detecting UFCx and Basix
 find_package(
   Python3
@@ -208,7 +190,7 @@ if(Python3_Interpreter_FOUND)
   endif()
 endif()
 
-find_package(Basix 0.8 REQUIRED CONFIG HINTS ${BASIX_PY_DIR})
+find_package(Basix 0.10 REQUIRED CONFIG HINTS ${BASIX_PY_DIR})
 set_package_properties(
   basix PROPERTIES
   TYPE REQUIRED
@@ -216,7 +198,7 @@ set_package_properties(
   URL "https://github.com/fenics/basix"
 )
 
-find_package(DOLFINX 0.8 REQUIRED CONFIG)
+find_package(DOLFINX 0.10 REQUIRED CONFIG)
 set_package_properties(
   DOLFINX PROPERTIES
   TYPE REQUIRED
@@ -247,7 +229,7 @@ set_package_properties(
 # which method UFCx was found
 if(NOT CUDOLFINX_UFCX_PYTHON)
   # Check in CONFIG mode, i.e. look for installed ufcxConfig.cmake
-  find_package(ufcx 0.8 REQUIRED CONFIG)
+  find_package(ufcx 0.10 REQUIRED CONFIG)
 else()
   # Check in MODULE mode (using FindUFCX.cmake)
   find_package(
@@ -255,7 +237,7 @@ else()
     COMPONENTS Interpreter
     REQUIRED
   )
-  find_package(UFCx 0.8 REQUIRED MODULE)
+  find_package(UFCx 0.10 REQUIRED MODULE)
 endif()
 
 set_package_properties(
