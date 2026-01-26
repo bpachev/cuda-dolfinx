@@ -25,18 +25,6 @@ ARG DOLFINX_CMAKE_BUILD_TYPE="Release"
 LABEL maintainer="Benjamin Pachev <benjaminpachev@gmail.com>"
 LABEL description="Modified FEniCS dev environment with CUDA PETSc installed."
 
-ARG ADIOS2_VERSION
-ARG DOXYGEN_VERSION
-ARG GMSH_VERSION
-ARG HDF5_VERSION
-ARG KAHIP_VERSION
-ARG PETSC_VERSION
-ARG SLEPC_VERSION
-ARG SPDLOG_VERSION
-ARG NUMPY_VERSION
-ARG MPICH_VERSION
-ARG OPENMPI_SERIES
-ARG OPENMPI_PATCH
 
 # The following ARGS are used in the dev-env layer.
 # They are safe defaults. They can be overridden by the user.
@@ -224,7 +212,7 @@ RUN apt-get -qq update && \
     --download-suitesparse \
     --with-scalar-type=real \
     --with-precision=double && \
-    make PETSC_ARCH=linux-gnu-real64-32-cuda ${MAKEFLAGS} all 
+    make PETSC_ARCH=linux-gnu-real64-32-cuda ${MAKEFLAGS} -j${BUILD_NP} all 
 
     # Install petsc4py
 RUN cd ${PETSC_DIR}/src/binding/petsc4py && \
