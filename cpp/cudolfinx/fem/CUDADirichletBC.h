@@ -192,6 +192,77 @@ public:
       }
     }
   }
+
+  /// Constructor for CUDADirichletBC for a blocked matrix/vector
+  ///
+  /// @param[in] Function space for each block
+  /// @param[in] Boundary conditions
+  /// @param[in] offsets Offsets for each block's local entries
+  /// @param[in] ghost_offsets Offsets for each  block's ghost entries
+  /// @param[in] Restriction for each block
+  CUDADirichletBC(
+      const std::vector<std::shared_ptr<dolfinx::fem::FunctionSpace<T>>>& V_list,
+      const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T,U>>>& bcs,
+      const std::vector<std::int32_t>& offsets,
+      const std::vector<std::int32_t>& ghost_offsets,
+      const std::vector<std::shared_ptr<std::map<std::int32_t, std::int32_t>>>& restrictions)
+  {
+    size_t num_blocks = V_list.size();
+    if ((offsets.size() != num_blocks + 1)) {
+      throw std::runtime_error("Expected number of offsets to equal num function spaces plus 1!!");
+    }
+    if (restrictions.size() != num_blocks)
+      throw std::runtime_error("Number of restrictions must equal number of function spaces!");
+    if (ghost_offsets.size() != num_blocks)
+      throw std::runtime_error("Number of ghost offsets must equal number of function spaces!");
+
+    std::vector<std::int32_t> dof_indices;
+    std::vector<std::int32_t> ghost_dof_indices;
+
+    size_t vec_size = 0;
+    for (const auto& restriction: restrictions)
+      vec_size += restriction->size();
+    _num_dofs = vec_size;
+    _dof_values.assign(_num_dofs, 0.0);
+
+    for (size_t i = 0; i < num_blocks; i++) {
+      size_t num_local_unrolled_dofs = offsets[i+1] - offsets[i];
+      std::vector<T> block_dof_values;
+      std::vector<std::int32_t> block_dofs;
+      std::vector<std::int32_t> block_ghost_dofs;
+      extract_bc_info(
+          *V_list[i], bcs, block_dof_values,
+          block_dofs, block_ghost_dofs);
+      int bs = V_list[i]->dofmap()->index_map_bs();
+      bs = (bs < 0) ? 1 : bs;
+      auto& restriction = restrictions[i];
+      std::int32_t target_dof;
+      for (auto dof : block_dofs) {
+        std::int32_t blocked_dof = dof / bs;
+        if (restriction->find(blocked_dof) != restriction->end()) {
+          target_dof = (dof % bs) + bs * restriction->at(blocked_dof) + offsets[i];
+        }
+        else continue;
+        dof_indices.push_back(target_dof);
+        _dof_values[target_dof] = block_dof_values[dof];
+      }
+      for (auto dof : block_ghost_dofs) {
+        std::int32_t blocked_dof = dof / bs;
+        if (restriction->find(blocked_dof) != restriction->end()) {
+          target_dof = (dof % bs) + bs * restriction->at(blocked_dof) + ghost_offsets[i];
+        }
+        else continue;
+        ghost_dof_indices.push_back(target_dof);
+        _dof_values[target_dof] = block_dof_values[dof];
+      }
+    }
+    
+    _num_owned_boundary_dofs = dof_indices.size();
+    _num_boundary_dofs = dof_indices.size() + ghost_dof_indices.size();
+    dof_indices.insert(dof_indices.end(), ghost_dof_indices.begin(), ghost_dof_indices.end());
+    init_device_arrs(dof_indices);
+  }
+
   //-----------------------------------------------------------------------------
   /// Destructor
   ~CUDADirichletBC()
@@ -250,6 +321,30 @@ public:
   }
   //-----------------------------------------------------------------------------
 
+  /// Allocate device arrays and populate them 
+  /// Assumes _dof_values has already been populated
+  /// and that _num_dofs has been set
+  ///
+  /// @param[in] dof_indices Unrolled indices of boundary degrees of freedom
+  void init_device_arrs(std::vector<std::int32_t>& dof_indices)
+  {
+    signed char* dof_markers = new signed char[_num_dofs];
+    for (size_t i = 0; i < _num_dofs; i++) dof_markers[i] = 0;
+    for (std::int32_t ind : dof_indices) dof_markers[ind] = 1;
+
+    size_t _ddof_values_size = _num_dofs*sizeof(T);
+    size_t _ddof_indices_size = _num_boundary_dofs*sizeof(std::int32_t);
+    size_t _ddof_markers_size = _num_dofs*sizeof(char);
+    CUDA::safeMemAlloc(&_ddof_values, _ddof_values_size);
+    CUDA::safeMemcpyHtoD(_ddof_values, _dof_values.data(), _ddof_values_size);
+    CUDA::safeMemAlloc(&_ddof_indices, _ddof_indices_size);
+    CUDA::safeMemcpyHtoD(_ddof_indices, dof_indices.data(), _ddof_indices_size);
+    CUDA::safeMemAlloc(&_ddof_markers, _ddof_markers_size);
+    CUDA::safeMemcpyHtoD(_ddof_markers, dof_markers, _ddof_markers_size);
+    if (dof_markers)
+      delete[] dof_markers;
+  }
+
   /// Update device-side values for all provided boundary conditions
   /// The user is responsible for ensuring the provided conditions are in the original list
   void update(const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T,U>>>& bcs) {
@@ -258,6 +353,32 @@ public:
     }
 
     CUDA::safeMemcpyHtoD(_ddof_values, _dof_values.data(), _num_dofs * sizeof(T));
+  }
+
+  void extract_bc_info(
+      const dolfinx::fem::FunctionSpace<T>& V,
+      const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T,U>>>& bcs,
+      std::vector<T>& dof_values,
+      std::vector<std::int32_t>& dof_indices,
+      std::vector<std::int32_t>& ghost_dof_indices)
+  {
+    int bs = V.dofmap()->index_map_bs();
+    bs = (bs < 0) ? 1 : bs;
+    auto index_map = V.dofmap()->index_map;
+    // Looks like index_map no longer has block_size
+    size_t num_dofs = bs * (
+        index_map->size_local() + index_map->num_ghosts());
+
+    dof_values.assign(num_dofs, 0.0);
+    for (auto& bc : bcs) {
+      if(!V.contains(*bc->function_space())) continue;
+      bc->set(std::span<T>(dof_values), {}, 1);
+      auto const [dofs, range] = bc->dof_indices();
+      for (std::size_t j = 0; j < dofs.size(); j++) {
+        if (j < range) dof_indices.push_back(dofs[j]);
+        else ghost_dof_indices.push_back(dofs[j]);
+      }
+    }
   }
 
   /// Get the number of degrees of freedom

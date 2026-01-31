@@ -124,7 +124,7 @@ class BlockCUDAForm:
         if type(forms[0]) is CUDAForm: self._init_vector()
         else: self._init_matrix()
 
-    def _get_restriction_offsets(self, forms, restrictions=None):
+    def _get_restriction_offsets(self, forms, restrictions=None, idx=0):
         """Get a list of offsets and restriction indices."""
 
         offset = 0
@@ -134,7 +134,7 @@ class BlockCUDAForm:
         restriction_inds_list = []
         local_sizes = []
         for i, form in enumerate(forms):
-            dofmap = form.function_spaces[0].dofmap
+            dofmap = form.function_spaces[idx].dofmap
             local_size = dofmap.index_map.size_local
             if restrictions is not None:
                 restriction_inds = restrictions[i]
@@ -160,9 +160,15 @@ class BlockCUDAForm:
     def _init_vector(self):
         """Initialize vector form."""
 
+        self.arity = 1
         # don't need ghost offsets for vector assembly
         restriction_inds_list, self._offsets, ghost_offsets = self._get_restriction_offsets(
             self._forms, self._restrictions)
+        self._restriction_offsets = [
+            (restriction_inds_list, self._offsets, ghost_offsets)
+        ]
+        self._function_spaces = [[form.function_spaces[0] for form in self._forms]]
+
         for form, offset, ghost_offset, restriction_inds in zip(self._forms, self._offsets, ghost_offsets, restriction_inds_list):
             form.cuda_form.set_restriction(
                 [offset], [ghost_offset], [restriction_inds]
@@ -174,6 +180,7 @@ class BlockCUDAForm:
     def _init_matrix(self):
         """Initialize matrix form."""
 
+        self.arity = 2
         row_forms = [row[0] for row in self._forms]
         col_forms = self._forms[0]
         
@@ -182,8 +189,18 @@ class BlockCUDAForm:
         )
 
         col_restrictions, col_offsets, col_ghost_offsets = self._get_restriction_offsets(
-            col_forms, self._restrictions[1] if self._restrictions is not None else None
+            col_forms, self._restrictions[1] if self._restrictions is not None else None,
+            idx=1 # need to extract the second FunctionSpace, not the first
         )
+
+        self._restriction_offsets = [
+            (row_restrictions, row_offsets, row_ghost_offsets),
+            (col_restrictions, col_offsets, col_ghost_offsets)
+        ]
+        self._function_spaces = [
+            [form.function_spaces[0] for form in row_forms],
+            [form.function_spaces[1] for form in col_forms]
+        ]
   
         # restrict forms appropriately
         for i, row in enumerate(self._forms):
@@ -193,6 +210,37 @@ class BlockCUDAForm:
                         [row_ghost_offsets[i], col_ghost_offsets[j]],
                         [row_restrictions[i], col_restrictions[j]]
                         )
+
+    def make_block_bc(self, bcs):
+        """Create blocked CUDADirichletBC objects usable with this form."""
+
+        if not len(bcs):
+            return None
+
+        blocked_bcs = []
+        V = bcs[0].function_space 
+        if type(V) is _cpp.fem.FunctionSpace_float32:
+            bc_cls = _cucpp.fem.CUDADirichletBC_float32
+        elif type(V) is _cpp.fem.FunctionSpace_float64:
+            bc_cls = _cucpp.fem.CUDADirichletBC_float64
+        else:
+            raise TypeError(
+                f"No corresponding CUDADirichletBC class for cpp"
+                f"FunctionSpace object of type '{type(V)}'"
+            )
+        _bcs = [bc._cpp_object for bc in bcs]
+        for idx in range(self.arity):
+            restrictions, offsets, ghost_offsets = self._restriction_offsets[idx]
+            _bc = bc_cls(
+                    self._function_spaces[idx],
+                    _bcs,
+                    offsets,
+                    ghost_offsets,
+                    restrictions)
+            blocked_bcs.append(_bc)
+
+        return blocked_bcs
+
 
     @property
     def forms(self):

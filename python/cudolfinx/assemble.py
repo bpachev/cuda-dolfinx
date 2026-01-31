@@ -112,7 +112,7 @@ class CUDAAssembler:
   def assemble_matrix_block(self,
     a: BlockCUDAForm,
     mat: typing.Optional[CUDAMatrix] = None,
-    bcs: typing.Optional[list[list[typing.Any]]] = None,
+    bcs: typing.Optional[list[typing.Any]] = None,
     coeffs: typing.Optional[list[list[typing.Any]]] = None,
     constants: typing.Optional[list[list[typing.Any]]] = None,
     zero: bool = True
@@ -124,12 +124,19 @@ class CUDAAssembler:
 
     if zero:
       _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
+
+    _bc0, _bc1 = a.make_block_bc(bcs) 
+
     for i, row in enumerate(a.forms):
       for j, form in enumerate(row):
-        _bcs = bcs[i][j] if bcs is not None else []
         _coeffs = coeffs[i][j] if coeffs is not None else None
         _constants = constants[i][j] if constants is not None else None
-        self.assemble_matrix(form, mat, bcs=_bcs, coeffs=_coeffs, constants=_constants, zero=False)
+        form.to_device()
+        self.pack_coefficients(form, coeffs) 
+        _cucpp.fem.assemble_matrix_on_device(
+          self._ctx, self._cpp_object, form.cuda_form,
+          form.cuda_mesh, mat._cpp_object, _bc0, _bc1
+        )
 
     return mat
 
@@ -337,6 +344,53 @@ class CUDAAssembler:
       cuda_forms, cuda_mesh,
       b._cpp_object, _bcs, _x0, scale
     )
+
+  def apply_lifting_block(self,
+    b: CUDAVector,
+    a: CUDABlockForm,
+    bcs: typing.Union[list[DirichletBC], typing.Any],
+    x0: CUDAVector | None = None,
+    alpha: float = 1.0,
+    set_bcs=True
+  ):
+    """Apply lifting with a single block form."""
+
+    _x0 = [] if x0 is None else x0._cpp_object
+    if type(bcs) is list:
+      block_bc = a.make_block_bc(bcs)[0]
+    elif type(bcs) in (_cpp.fem.CUDADirichletBC_float32, _cpp.fem.CUDADirichletBC_float64):
+      block_bc = bcs
+    else:
+      raise TypeError(
+        f"Expected either a list of DirichletBCs or a _cpp.fem_CUDADirichletBC_float64/32, got '{type(bcs)}'"
+      )
+    
+    cuda_mesh = None
+    for row in a.forms: 
+      _bcs = []
+      _x0_list = []
+      _cuda_forms = []
+      for form in row:
+        self.pack_coefficients(form)
+        if cuda_mesh is None:
+          cuda_mesh = form.cuda_mesh
+        _cuda_forms.append(form.cuda_form)
+        _bcs.append(block_bc)
+        if x0 is not None:
+          _x0_list.append(_x0)
+
+      _cucpp.fem.apply_lifting_on_device(
+        self._ctx, self._cpp_object,
+        _cuda_forms, cuda_mesh,
+        b._cpp_object, _bcs, _x0_list, alpha
+      )
+
+    if x0 is not None:
+      _cucpp.fem.set_bc_on_device(self._ctx, self._cpp_object,
+              b._cpp_object, block_bc, _x0, alpha)
+    else:
+      _cucpp.fem.set_bc_on_device(self._ctx, self._cpp_object,
+              b._cpp_object, block_bc, alpha)
 
   def set_bc(self,
     b: CUDAVector,
