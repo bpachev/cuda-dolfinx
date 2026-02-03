@@ -1,3 +1,9 @@
+// Copyright (C) 2026 Chayanon Wichitrnithed
+//
+// This file is part of cuDOLFINX
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
+
 #include <memory>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/shared_ptr.h>
