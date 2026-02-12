@@ -6,7 +6,7 @@ project(interpolate)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS "-O2 -g -pg")
+set(CMAKE_CXX_FLAGS " -g -pg")
 
 find_package(Basix REQUIRED)
 
@@ -30,9 +30,9 @@ endif()
 find_package(CUDAToolkit REQUIRED)
 
 
-add_executable(interpolate_same_map interpolate_same_map.cpp)
 
 function(link_interpolate name)
+  add_executable(${name} ${name}.cpp)
   target_link_libraries(${name} PRIVATE MPI::MPI_CXX)
   target_link_libraries(${name} PRIVATE dolfinx)
   target_link_libraries(${name} PRIVATE cudolfinx)
@@ -40,5 +40,6 @@ function(link_interpolate name)
 endfunction()
 
 link_interpolate(interpolate_same_map)
+link_interpolate(interpolate_same_map_vector)
 
 

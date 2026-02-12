@@ -13,8 +13,10 @@
 #include <dolfinx/fem/interpolate.h>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <vector>
 #include <cudolfinx/fem/CUDAInterpolate.h>
+#include <basix/interpolation.h>
 
 namespace dolfinx::fem
 {
@@ -40,6 +42,7 @@ public:
     auto map = mesh->topology()->index_map(mesh->topology()->dim());
     _num_cells = map->size_local() + map->num_ghosts();
 
+    const int bs = _f->function_space()->dofmap()->bs();
     // Create global-to-cell DOF map used for interpolation
     _M = CUDA::create_interpolation_map(*_f);
     CUDA::safeMemAlloc(&_dM, _M.size()*sizeof(int));
@@ -67,16 +70,27 @@ public:
     assert(element0);
     auto element1 = _f->function_space()->element();
 
+    if (element0->map_type() != element1->map_type()) {
+      throw std::runtime_error("Functions must share the same reference element mapping.");
+    }
+
+    if (d_g.host_function()->function_space()->dofmap()->bs() !=
+        _f->function_space()->dofmap()->bs()) {
+      throw std::runtime_error("Functions must have the same block size.");
+    }
+
     // Device-side cofficient vector of g
     CUdeviceptr _dvalues_g = d_g.device_values();
 
     // Create interpolation operator IM, mapping g to f
-    auto [IM, _im_shape] = element1->create_interpolation_operator(*element0);
+    auto [IM, _im_shape] = basix::compute_interpolation_operator<T>(element0->basix_element(), element1->basix_element());
     CUdeviceptr dIM;
     CUDA::safeMemAlloc(&dIM, IM.size()*sizeof(T));
     CUDA::safeMemcpyHtoD(dIM, (void*)(IM.data()), IM.size()*sizeof(T));
 
-    CUDA::interpolate_same_map<T>(_dvalues, _dvalues_g, _im_shape, _num_cells, dIM, _dM, d_g.device_dof_matrix());
+
+    const int bs = _f->function_space()->dofmap()->bs();
+    CUDA::interpolate_same_map<T>(_dvalues, _dvalues_g, _im_shape, _num_cells, bs, dIM, _dM, d_g.device_dof_matrix());
 
     copy_device_values_to_host();
     cuMemFree(dIM);
