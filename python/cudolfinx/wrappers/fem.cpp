@@ -77,22 +77,23 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
           "__init__",
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
               dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form,
-	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources,
-	      std::vector<int>& integral_tensor_indices
-	      )
+	            std::uintptr_t tabulate_tensor_source, std::uintptr_t tabulate_tensor_names, std::string form_name
+	           )
              {
-	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
+	             struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
+               const char * source = reinterpret_cast<const char *>(tabulate_tensor_source);
+               char** names = reinterpret_cast<char **>(tabulate_tensor_names);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
                  cuda_context,
                  &form,
-		 p,
-		 tabulate_tensor_names,
-		 tabulate_tensor_sources,
-		 integral_tensor_indices
+                 p,
+                 source,
+                 names,
+                 form_name
                );
-             }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"),
-	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources"),
-	     nb::arg("integral_tensor_indices")
+             }, nb::arg("context"), nb::arg("form"), nb::arg("ufcx_form"),
+	     nb::arg("tabulate_tensor_source"), nb::arg("tabulate_tensor_names"),
+	     nb::arg("form_name")
 	     )
       .def(
           "compile",

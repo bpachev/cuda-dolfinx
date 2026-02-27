@@ -11,6 +11,26 @@ from dolfinx import fem, cpp
 import numpy as np
 import pathlib
 from typing import *
+import ufl
+import ffcx
+from ffcx_backends.jit import compile_forms
+
+# TODO generalize interface to include Expressions
+def ffcx_jit(
+    ufl_form: ufl.Form, form_compiler_options: dict | None = None
+):
+    """Compile UFL form with CUDA backend.
+
+    Args:
+        ufl_form: Form to compile
+        form_compiler_options: Options for FFCx form compilation.
+    Returns:
+        A tuple containing the compiled objects and module
+    """
+    p_ffcx = ffcx.get_options(form_compiler_options)
+    p_ffcx["language"] = "ffcx_backends.cuda"
+    objects, module, _ = compile_forms([ufl_form], options=p_ffcx)
+    return objects, module 
 
 def get_tabulate_tensor_sources(form: fem.Form):
     """Given a compiled fem.Form, extract the C source code of the tabulate tensors

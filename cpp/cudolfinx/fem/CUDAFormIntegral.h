@@ -100,6 +100,9 @@ std::string cuda_kernel_binary_search(void);
 // Function to convert IntegralType to string
 std::string to_string(IntegralType integral_type);
 
+// Function to extract factory name from tabulate tensor function name
+std::string get_factory_name(std::string tabulate_tensor_function_name);
+
 template <dolfinx::scalar T,
           std::floating_point U = dolfinx::scalar_value_t<T>>
 void assemble_vector_cell(
@@ -409,32 +412,23 @@ void lift_bc_facet(
   if (x0) x0->restore_values();
 }
 
-CUDA::Module compile_form_integral_kernel(
+/// Function to compile all assembly kernels for a form, with caching
+CUDA::Module compile_form_assembly_module(
   const CUDA::Context& cuda_context,
-  std::string cachedir,
   CUjit_target target,
-  int form_rank,
-  IntegralType integral_type,
-  std::pair<std::string, std::string> tabulate_tensor_source,
-  int32_t max_threads_per_block,
-  int32_t min_blocks_per_multiprocessor,
-  int32_t num_vertices_per_cell,
-  int32_t num_coordinates_per_vertex,
-  int32_t num_dofs_per_cell0,
-  int32_t num_dofs_per_cell1,
-  int32_t num_coeffs_per_cell,
-  enum assembly_kernel_type assembly_kernel_type,
-  bool debug,
+  std::string module_source,
+  std::string name,
+  std::string cachedir,
   bool verbose,
-  std::string& factory_name);
+  bool debug
+);
 
 /// Lower-level function to generate the assembly kernel source
 /// code.
-std::string get_form_integral_kernel_src(
+std::tuple<std::string, std::string, std::string> get_form_integral_kernel_src(
   int form_rank,
   IntegralType integral_type,
-  std::pair<std::string, std::string> tabulate_tensor_source,
-  std::string factory_name,
+  std::string tabulate_tensor_function_name,
   int32_t max_threads_per_block,
   int32_t min_blocks_per_multiprocessor,
   int32_t num_vertices_per_cell,
@@ -444,7 +438,6 @@ std::string get_form_integral_kernel_src(
   int32_t num_coeffs_per_cell,
   enum assembly_kernel_type assembly_kernel_type
 );
-
 
 /// A wrapper for a form integral with a CUDA-based assembly kernel
 /// and data that is stored in the device memory of a CUDA device.
@@ -651,42 +644,11 @@ public:
 
   //-----------------------------------------------------------------------------
   /// Set assembly kernels from module and name
-  void set_kernels(CUDA::Module assembly_module, std::string name)
+  void set_kernels(CUDA::Module& assembly_module, std::string assembly_kernel_name, std::string lift_bc_kernel_name)
   {
-    _name = name;
-    _assembly_module = std::move(assembly_module);
-    std::string kern_name = std::string("assemble_") + _name;
-    switch (_integral_type) {
-           case IntegralType::cell:
-                   kern_name += std::string("_c");
-                   break;
-           case IntegralType::exterior_facet:
-                   kern_name += std::string("_ef");
-                   break;
-           case IntegralType::interior_facet:
-                   kern_name += std::string("_if");
-                   break;
-    }
-
-    switch (_rank) {
-      case 0:
-        kern_name += std::string("_scalar");
-        break;
-      case 1:
-        kern_name += std::string("_vec");
-        break;
-      case 2:
-      default:
-        kern_name += std::string("_mat");
-        break;	
-    }
-
-    _assembly_kernel = _assembly_module.get_device_function(kern_name);
-
-    if (_rank == 2) {
-      _lift_bc_kernel = _assembly_module.get_device_function(
-        std::string("lift_bc_") + _name);
-    }
+    _assembly_kernel = assembly_module.get_device_function(assembly_kernel_name);
+    if (_rank == 2)
+      _lift_bc_kernel = assembly_module.get_device_function(lift_bc_kernel_name);
   }  
 
   /// Assemble a scalar from the form integral

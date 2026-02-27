@@ -12,6 +12,7 @@ from dolfinx import cpp as _cpp
 from dolfinx.jit import mpi_jit_decorator
 import functools
 import numpy as np
+import types
 import typing 
 import ufl
 import os
@@ -27,7 +28,7 @@ class CUDAForm:
     """CUDA wrapper class for a dolfinx.fem.Form
     """
     
-    def __init__(self, form: fe.Form, jit_args: typing.Optional[dict] = {}):
+    def __init__(self, form: fe.Form, objects: list[typing.Any], module: types.ModuleType, jit_args: dict | None = {}):
         """Initialize the wrapper
         """
 
@@ -35,8 +36,8 @@ class CUDAForm:
         self._cuda_mesh = _create_mesh_on_device(form.mesh)
 
         self._dolfinx_form = form
-        self._wrapped_tabulate_tensors, self._integral_tensor_indices = jit.get_wrapped_tabulate_tensors(form)
-        ufcx_form_addr = form.module.ffi.cast("uintptr_t", form.module.ffi.addressof(form.ufcx_form))
+        ufcx_form, cuda_source, tabulate_tensor_names = objects
+        ufcx_form_addr = module.ffi.cast("uintptr_t", form.module.ffi.addressof(ufcx_form))
 
         cpp_form = form._cpp_object
         if type(cpp_form) is _cpp.fem.Form_float32:
@@ -46,18 +47,16 @@ class CUDAForm:
         else:
             raise ValueError(f"Cannot instantiate CUDAForm for Form of type {type(cpp_form)}!")
 
-        _tabulate_tensor_names = []
-        _tabulate_tensor_sources = []
-        for name, source in self._wrapped_tabulate_tensors:
-            _tabulate_tensor_names.append(name)
-            _tabulate_tensor_sources.append(source)
+        module_file = Path(form.module.__file__)
+        form_name = module_file.name.split(".")[0]
+
         self._cuda_form = form_cls(
                 self._ctx,
                 cpp_form,
                 ufcx_form_addr,
-                _tabulate_tensor_names,
-                _tabulate_tensor_sources,
-                self._integral_tensor_indices
+                cuda_source,
+                tabulate_tensor_names,
+                form_name,
         )
 
         _jit_args = DEFAULT_CUDA_JIT_ARGS.copy()
@@ -235,17 +234,18 @@ def form(
         """Recursively convert ufl.Forms to CUDAForm."""
 
         if isinstance(form, ufl.Form):
+            objects, module = jit.ffcx_jit(form, **kwargs)
             dolfinx_form = fe.form(form, **kwargs)
-            return CUDAForm(dolfinx_form, jit_args=cuda_jit_args)
+            return CUDAForm(dolfinx_form, objects, module, jit_args=cuda_jit_args)
         elif isinstance(form, collections.abc.Iterable):
             return list(map(lambda sub_form: _create_form(sub_form), form))
         else:
             raise TypeError("Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!")
 
     cuda_form = _create_form(form)
-    # TODO: properly handle restriction for a single form
     if isinstance(form, collections.abc.Iterable):
         return BlockCUDAForm(cuda_form, restriction)
+    elif restriction is not None: return BlockCUDAForm([cuda_form], restriction)
     else: return cuda_form
 
 # Cache this so we don't create multiple copies of the same CUDAMesh
