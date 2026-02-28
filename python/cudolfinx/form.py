@@ -37,8 +37,8 @@ class CUDAForm:
 
         self._dolfinx_form = form
         ufcx_form, cuda_source, tabulate_tensor_names = objects
-        ufcx_form_addr = module.ffi.cast("uintptr_t", form.module.ffi.addressof(ufcx_form))
-
+        ufcx_form_addr = module.ffi.cast("uintptr_t", module.ffi.addressof(ufcx_form))
+        
         cpp_form = form._cpp_object
         if type(cpp_form) is _cpp.fem.Form_float32:
             form_cls = _cucpp.fem.CUDAForm_float32
@@ -47,15 +47,15 @@ class CUDAForm:
         else:
             raise ValueError(f"Cannot instantiate CUDAForm for Form of type {type(cpp_form)}!")
 
-        module_file = Path(form.module.__file__)
+        module_file = Path(module.__file__)
         form_name = module_file.name.split(".")[0]
 
         self._cuda_form = form_cls(
                 self._ctx,
                 cpp_form,
                 ufcx_form_addr,
-                cuda_source,
-                tabulate_tensor_names,
+                module.ffi.cast("uintptr_t", cuda_source),
+                module.ffi.cast("uintptr_t", tabulate_tensor_names),
                 form_name,
         )
 

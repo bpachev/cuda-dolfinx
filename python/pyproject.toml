@@ -56,9 +56,6 @@ sdist.exclude = ["*.cpp"]
 cmake.build-type = "Release"
 wheel.license-files = ["../COPYING*"]
 
-[tool.pytest]
-junit_family = "xunit2"
-
 [tool.pytest.ini_options]
 markers = ["skip_in_parallel: marks tests that should be run in serial only."]
 

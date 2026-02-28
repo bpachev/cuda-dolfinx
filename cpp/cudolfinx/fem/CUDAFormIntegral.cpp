@@ -125,6 +125,7 @@ std::string cuda_kernel_assemble_scalar_cell(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     "\n"
     "    // Compute element vector\n"
     "    " + tabulate_tensor_function_name + "(\n"
@@ -133,7 +134,8 @@ std::string cuda_kernel_assemble_scalar_cell(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
 
     "\n"
     "  }\n"
@@ -201,7 +203,8 @@ std::string cuda_kernel_assemble_scalar_exterior_facet(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      &local_mesh_entity,\n"
-    "      nullptr);\n"
+    "      nullptr,\n" // permutations
+    "      nullptr);\n" // custom data
     "\n"
     "  }\n"
     + scalar_reduction() +
@@ -331,6 +334,7 @@ std::string cuda_kernel_assemble_vector_cell(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
    // "    uint32_t cell_permutation = cell_permutations[c];\n"
     "\n"
     "    // Compute element vector\n"
@@ -340,7 +344,8 @@ std::string cuda_kernel_assemble_vector_cell(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
 
     "\n"
     "    // Add element vector values to the global vector,\n"
@@ -431,7 +436,8 @@ std::string cuda_kernel_assemble_vector_exterior_facet(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      &local_mesh_entity,\n"
-    "      nullptr);\n"
+    "      nullptr,\n" // quadrature permutation
+    "      nullptr);\n" // custom_data
     "\n"
     "    // Add element vector values to the global vector,\n"
     "    // skipping entries related to degrees of freedom\n"
@@ -683,6 +689,7 @@ std::string cuda_kernel_lift_bc_cell(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void * custom_data = NULL;\n"
     "\n"
     "    // Compute element matrix\n"
     "    " + tabulate_tensor_function_name + "(\n"
@@ -691,7 +698,8 @@ std::string cuda_kernel_lift_bc_cell(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // Compute modified element vector\n"
     "    const int32_t* dofs0 = &dofmap0[c*" + std::to_string(num_dofs_per_cell0) + "];\n"
@@ -803,6 +811,7 @@ std::string cuda_kernel_lift_bc_exterior_facet(
     "    }\n"
     "\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     "\n"
     "    // Compute element matrix\n"
     "    " + tabulate_tensor_function_name + "(\n"
@@ -811,7 +820,8 @@ std::string cuda_kernel_lift_bc_exterior_facet(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      &local_mesh_entity,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // Compute modified element vector\n"
     "    const int32_t* dofs0 = &dofmap0[c*" + std::to_string(num_dofs_per_cell0) + "];\n"
@@ -1059,6 +1069,7 @@ std::string cuda_kernel_assemble_matrix_cell_local(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
    // "    uint32_t cell_permutation = cell_permutations[c];\n"
     "\n"
     "    // Compute element matrix\n"
@@ -1068,7 +1079,8 @@ std::string cuda_kernel_assemble_matrix_cell_local(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // For degrees of freedom that are subject to essential boundary conditions,\n"
     "    // set the element matrix values to zero.\n"
@@ -1109,8 +1121,6 @@ std::string cuda_kernel_assemble_matrix_cell_global(
   int32_t num_dofs_per_cell1)
 {
   return ""
-    "extern \"C\" int printf(const char * format, ...);\n"
-    "\n"
     "extern \"C\" void __global__\n"
     "" + assembly_kernel_name + "(\n"
     "  int32_t num_active_cells,\n"
@@ -1178,6 +1188,7 @@ std::string cuda_kernel_assemble_matrix_cell_global(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     //"    uint32_t cell_permutation = cell_permutations[c];\n"
     "\n"
     "    // Compute element matrix\n"
@@ -1187,7 +1198,8 @@ std::string cuda_kernel_assemble_matrix_cell_global(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // Add element matrix values to the global matrix,\n"
     "    // skipping entries related to degrees of freedom\n"
@@ -1376,6 +1388,7 @@ std::string cuda_kernel_assemble_matrix_cell_lookup_table(
     "\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     //"    uint32_t cell_permutation = cell_permutations[c];\n"
     "\n"
     "    // Compute element matrix\n"
@@ -1385,7 +1398,8 @@ std::string cuda_kernel_assemble_matrix_cell_lookup_table(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // Add element matrix values to the global matrix,\n"
     "    // skipping entries related to degrees of freedom\n"
@@ -1559,6 +1573,7 @@ std::string cuda_kernel_assemble_matrix_cell_rowwise(
     "    const ufc_scalar_t* coeff_cell = &coeffs[c*num_coeffs_per_cell];\n"
     "    int* entity_local_index = NULL;\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     //"    uint32_t cell_permutation = cell_permutations[c];\n"
     "\n"
     "    // Gather cell vertex coordinates\n"
@@ -1585,7 +1600,8 @@ std::string cuda_kernel_assemble_matrix_cell_rowwise(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      entity_local_index,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "\n"
     "    // Add element matrix values to the global matrix,\n"
     "    // skipping entries related to degrees of freedom\n"
@@ -1679,8 +1695,6 @@ std::string cuda_kernel_assemble_matrix_exterior_facet(
   // For now we don't care about the assembly_kernel_type
   // We default to the global algorithm
   return 
-    "extern \"C\" int printf(const char * format, ...);\n"
-    "\n"
     "extern \"C\" void __global__\n"
     "" + assembly_kernel_name + "(\n"
     "  int32_t num_active_mesh_entities,\n"
@@ -1747,6 +1761,7 @@ std::string cuda_kernel_assemble_matrix_exterior_facet(
     "    }\n"
     "\n"
     "    uint8_t* quadrature_permutation = NULL;\n"
+    "    void* custom_data = NULL;\n"
     "\n"
     "    // Compute element matrix\n"
     "    " + tabulate_tensor_function_name + "(\n"
@@ -1755,7 +1770,8 @@ std::string cuda_kernel_assemble_matrix_exterior_facet(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      &local_mesh_entity,\n"
-    "      quadrature_permutation);\n"
+    "      quadrature_permutation,\n"
+    "      custom_data);\n"
     "    // Add element matrix values to the global matrix,\n"
     "    // skipping entries related to degrees of freedom\n"
     "    // that are subject to essential boundary conditions.\n"
@@ -1910,6 +1926,7 @@ std::string compute_interior_facet_tensor(
     "      }\n"
     "    }\n"
     "\n"
+    "    void* custom_data = NULL;\n"
     "    uint8_t quadrature_permutation[2];\n"
     "    if (facet_permutations != NULL) {\n"
     "      quadrature_permutation[0] = facet_permutations[c0*num_mesh_entities_per_cell + facet0];\n"
@@ -1941,7 +1958,8 @@ std::string compute_interior_facet_tensor(
     "      constant_values,\n"
     "      cell_vertex_coordinates,\n"
     "      local_mesh_entities,\n"
-    "      quadrature_permutation);\n";
+    "      quadrature_permutation,\n"
+    "      custom_data);\n";
 
 }
 
@@ -2000,8 +2018,6 @@ std::string cuda_kernel_assemble_matrix_interior_facet(
 {
 
   return ""
-    "extern \"C\" int printf(const char * format, ...);\n"
-    "\n"
     "extern \"C\" void __global__\n"
     "" + assembly_kernel_name + "(\n"
     "  int32_t num_active_mesh_entities,\n"
@@ -2393,6 +2409,7 @@ std::tuple<std::string, std::string, std::string> dolfinx::fem::get_form_integra
     std::string("assemble_") + factory_name;
   std::string lift_bc_kernel_name =
     std::string("lift_bc_") + factory_name;
+
 
   switch (integral_type) {
     case IntegralType::interior_facet:
