@@ -298,8 +298,7 @@ public:
   const dolfinx::mesh::CUDAMesh<U>& mesh,
   const std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals,
   const dolfinx::fem::CUDAFormConstants<T>& constants,
-  const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
-  bool verbose) const
+  const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients) const
   {
     T integral = 0.0;	  
     {
@@ -310,7 +309,7 @@ public:
         for (auto const& cuda_cell_integral : cuda_cell_integrals) {
           integral += cuda_cell_integral.assemble_scalar(
             cuda_context, mesh,
-            constants, coefficients, verbose);
+            constants, coefficients, _verbose);
         }
       }
     }
@@ -326,7 +325,7 @@ public:
         {
           integral += cuda_exterior_facet_integral.assemble_scalar(
             cuda_context, mesh,
-            constants, coefficients, verbose);
+            constants, coefficients, _verbose);
         }
       }
     }
@@ -342,7 +341,7 @@ public:
         {
           integral += cuda_interior_facet_integral.assemble_scalar(
             cuda_context, mesh,
-            constants, coefficients, verbose);
+            constants, coefficients, _verbose);
         }
       }
     }
@@ -374,8 +373,7 @@ public:
   const std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals,
   const dolfinx::fem::CUDAFormConstants<T>& constants,
   const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
-  dolfinx::la::CUDAVector& b,
-  bool verbose) const
+  dolfinx::la::CUDAVector& b) const
   {
     {
       // Perform assembly for cell integrals
@@ -385,7 +383,7 @@ public:
         for (auto const& cuda_cell_integral : cuda_cell_integrals) {
           cuda_cell_integral.assemble_vector(
             cuda_context, mesh, dofmap,
-            constants, coefficients, b, verbose);
+            constants, coefficients, b, _verbose);
         }
       }
     }
@@ -401,7 +399,7 @@ public:
         {
           cuda_exterior_facet_integral.assemble_vector(
             cuda_context, mesh, dofmap,
-            constants, coefficients, b, verbose);
+            constants, coefficients, b, _verbose);
         }
       }
     }
@@ -417,7 +415,7 @@ public:
         {
           cuda_interior_facet_integral.assemble_vector(
             cuda_context, mesh, dofmap,
-            constants, coefficients, b, verbose);
+            constants, coefficients, b, _verbose);
         }
       }
     }
@@ -572,8 +570,7 @@ public:
     const dolfinx::fem::CUDADirichletBC<T,U>& bc1,
     std::shared_ptr<dolfinx::la::CUDAVector> x0,
     double scale,
-    dolfinx::la::CUDAVector& b,
-    bool verbose) const
+    dolfinx::la::CUDAVector& b) const
   {
     {
       // Apply boundary conditions for cell integrals
@@ -583,7 +580,7 @@ public:
         auto const& cuda_cell_integral = cuda_cell_integrals.at(0);
         cuda_cell_integral.lift_bc(
           cuda_context, mesh, dofmap0, dofmap1, bc1,
-          constants, coefficients, scale, x0, b, verbose);
+          constants, coefficients, scale, x0, b, _verbose);
       }
     }
 
@@ -597,7 +594,7 @@ public:
           cuda_exterior_facet_integrals.at(0);
         cuda_exterior_facet_integral.lift_bc(
           cuda_context, mesh, dofmap0, dofmap1, bc1,
-          constants, coefficients, scale, x0, b, verbose);
+          constants, coefficients, scale, x0, b, _verbose);
       }
     }
   }
@@ -690,8 +687,7 @@ public:
     std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals,
     const dolfinx::fem::CUDAFormConstants<T>& constants,
     const dolfinx::fem::CUDAFormCoefficients<T,U>& coefficients,
-    dolfinx::la::CUDAMatrix& A,
-    bool verbose) const
+    dolfinx::la::CUDAMatrix& A) const
   {
     {
       // Perform assembly for cell integrals
@@ -701,7 +697,7 @@ public:
         for (auto & cuda_cell_integral : cuda_cell_integrals) {
           cuda_cell_integral.assemble_matrix(
             cuda_context, mesh, dofmap0, dofmap1, bc0, bc1,
-            constants, coefficients, A, verbose);
+            constants, coefficients, A, _verbose);
         }
       }
     }
@@ -717,7 +713,7 @@ public:
         {
           cuda_exterior_facet_integral.assemble_matrix(
             cuda_context, mesh, dofmap0, dofmap1, bc0, bc1,
-            constants, coefficients, A, verbose);
+            constants, coefficients, A, _verbose);
         }
       }
     }
@@ -733,7 +729,7 @@ public:
         {
           cuda_interior_facet_integral.assemble_matrix(
             cuda_context, mesh, dofmap0, dofmap1, bc0, bc1,
-            constants, coefficients, A, verbose);
+            constants, coefficients, A, _verbose);
         }
       }
     }
@@ -968,8 +964,7 @@ public:
     const dolfinx::fem::CUDADirichletBC<T,U>& bc0,
     const dolfinx::fem::CUDADirichletBC<T,U>& bc1,
     std::map<IntegralType, std::vector<CUDAFormIntegral<T,U>>>& form_integrals,
-    dolfinx::la::CUDAMatrix& A,
-    bool verbose) const
+    dolfinx::la::CUDAMatrix& A) const
   {
     {
       auto it = form_integrals.find(IntegralType::cell);
@@ -977,7 +972,7 @@ public:
         std::vector<CUDAFormIntegral<T,U>>& cuda_cell_integrals = it->second;
         auto & cuda_cell_integral = cuda_cell_integrals.at(0);
         cuda_cell_integral.compute_lookup_table(
-          cuda_context, dofmap0, dofmap1, bc0, bc1, A, verbose);
+          cuda_context, dofmap0, dofmap1, bc0, bc1, A, _verbose);
       }
     }
 
@@ -989,7 +984,7 @@ public:
         auto & cuda_exterior_facet_integral =
           cuda_exterior_facet_integrals.at(0);
         cuda_exterior_facet_integral.compute_lookup_table(
-          cuda_context, dofmap0, dofmap1, bc0, bc1, A, verbose);
+          cuda_context, dofmap0, dofmap1, bc0, bc1, A, _verbose);
       }
     }
 
@@ -1001,7 +996,7 @@ public:
         auto & cuda_interior_facet_integral =
           cuda_interior_facet_integrals.at(0);
         cuda_interior_facet_integral.compute_lookup_table(
-          cuda_context, dofmap0, dofmap1, bc0, bc1, A, verbose);
+          cuda_context, dofmap0, dofmap1, bc0, bc1, A, _verbose);
       }
     }
   }
@@ -1012,6 +1007,10 @@ public:
 private:
   /// Module for various useful device-side functions
   CUDA::Module _util_module;
+  /// Flag to enable verbose output
+  bool _verbose;
+  /// Flag to enable debug output
+  bool _debug;
 };
 
 } // namespace fem

@@ -285,7 +285,9 @@ CUDAAssembler::CUDAAssembler(
   bool debug,
   const char* cudasrcdir,
   bool verbose)
-  : _util_module(compile_assembly_utils(cuda_context, target, debug, cudasrcdir, verbose))
+  : _util_module(compile_assembly_utils(cuda_context, target, debug, cudasrcdir, verbose)),
+    _verbose(verbose),
+    _debug(debug)
 {
 }
 //-----------------------------------------------------------------------------

@@ -9,7 +9,6 @@ from __future__ import annotations
 import collections
 import functools
 import typing
-import tempfile
 
 import dolfinx
 from dolfinx import cpp as _cpp
@@ -20,7 +19,7 @@ from dolfinx import fem as fe
 from cudolfinx.context import get_cuda_context
 from cudolfinx import cpp as _cucpp
 from cudolfinx.bcs import CUDADirichletBC
-from cudolfinx.form import CUDAForm, BlockCUDAForm
+from cudolfinx.form import CUDAForm, BlockCUDAForm, DEFAULT_CUDA_JIT_ARGS
 from cudolfinx.la import CUDAMatrix, CUDAVector
 from petsc4py import PETSc
 import numpy as np
@@ -41,13 +40,15 @@ class CUDAAssembler:
   """Class for assembly on the GPU
   """
 
-  def __init__(self):
+  def __init__(self, cachedir: str = None, verbose: bool = False, debug: bool = False):
     """Initialize the assembler
     """
 
+    if cachedir is None:
+        cachedir = DEFAULT_CUDA_JIT_ARGS["cachedir"]
+
     self._ctx = get_cuda_context()
-    self._tmpdir = tempfile.TemporaryDirectory()
-    self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
+    self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, cachedir, verbose, debug)
 
   def assemble_matrix(self,
       a: CUDAForm,

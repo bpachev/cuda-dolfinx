@@ -21,7 +21,10 @@ from pathlib import Path
 DEFAULT_CUDA_JIT_ARGS = {
     "max_threads_per_block": 1024,
     "min_blocks_per_multiprocessor": 1,
-    "cachedir":  str(os.getenv("XDG_CACHE_HOME", default=Path.home().joinpath(".cache")) / Path("fenics")) 
+    "cachedir":  str(os.getenv("XDG_CACHE_HOME", default=Path.home().joinpath(".cache")) / Path("fenics")),
+    "verbose": False,
+    "debug": False,
+    "custom_assembly_src": "",
 }
 
 class CUDAForm:

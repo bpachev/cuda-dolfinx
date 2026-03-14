@@ -88,7 +88,9 @@ public:
     int32_t max_threads_per_block,
     int32_t min_blocks_per_multiprocessor,
     std::string cachedir,
-    enum assembly_kernel_type assembly_kernel_type)
+    enum assembly_kernel_type assembly_kernel_type,
+    bool verbose,
+    bool debug)
   {
     auto cujit_target = CUDA::get_cujit_target(cuda_context);
       // Get the number of vertices and coordinates
@@ -109,10 +111,16 @@ public:
       num_dofs_per_cell1 = dofmap1.element_dof_layout().num_dofs() * dofmap1.element_dof_layout().block_size();
     }
  
-    std::string assembly_src = _tabulate_tensor_source;
-    // only add this function once
-    if (_form->rank() == 2)
-      assembly_src += cuda_kernel_binary_search() + "\n\n";
+    // If _assembly_src is already set, don't regenerate
+    // This allows testing of custom assembly kernels
+    bool generate_src = false;
+    if (_assembly_src.empty()) {
+      generate_src = true;
+      _assembly_src = _tabulate_tensor_source;
+      // only add this function once
+      if (_form->rank() == 2)
+        _assembly_src += cuda_kernel_binary_search() + "\n\n";
+    }
 
     std::map<IntegralType, std::vector<std::pair<std::string, std::string>>> kernel_names;
 
@@ -139,7 +147,9 @@ public:
           assembly_kernel_type
         );
         // add assembly loop for this integral to the overall source
-        assembly_src += integral_assembly_src;
+        // TODO just regenerate names if we already have the assembly kernel source
+        if (generate_src)
+          _assembly_src += integral_assembly_src;
         kernel_names[integral_type].emplace_back(assembly_kernel_name, lift_bc_kernel_name);
       }
     }
@@ -147,11 +157,11 @@ public:
     _module = compile_form_assembly_module(
         cuda_context,
         cujit_target,
-        assembly_src,
+        _assembly_src,
         _name,
         cachedir,
-        false, // verbose
-        false // debug
+        verbose,
+        debug
     );
 
     for (auto& [integral_type, integrals_for_type] : _integrals) {
@@ -162,6 +172,11 @@ public:
     }
 
     _compiled = true;
+  }
+
+  /// Set custom assembly module source
+  void set_assembly_src(std::string src) {
+    _assembly_src = src;
   }
 
   /// Copy constructor
@@ -282,6 +297,8 @@ private:
   std::array<std::map<int, std::string>, 4> _tabulate_tensor_names;
   // Source code with all tensor sources from FFcx
   std::string _tabulate_tensor_source;
+  // Full assembly module source code
+  std::string _assembly_src;
   // Form name
   std::string _name;
   // Whether or not the form is compiled

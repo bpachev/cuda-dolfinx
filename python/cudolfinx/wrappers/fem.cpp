@@ -99,13 +99,18 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
           "compile",
           [](dolfinx::fem::CUDAForm<T,U>& cf, const dolfinx::CUDA::Context& cuda_context,
              int32_t max_threads_per_block, int32_t min_blocks_per_multiprocessor,
-	     std::string cachedir)
-             {
+	           std::string cachedir, bool verbose, bool debug, std::string custom_assembly_src)
+            {
+               if (!custom_assembly_src.empty()) {
+                 // allow for a custom assembly source
+                 cf.set_assembly_src(custom_assembly_src);
+               }
                cf.compile(cuda_context, max_threads_per_block,
                           min_blocks_per_multiprocessor, cachedir,
-			  dolfinx::fem::assembly_kernel_type::ASSEMBLY_KERNEL_GLOBAL);
+			                   dolfinx::fem::assembly_kernel_type::ASSEMBLY_KERNEL_GLOBAL,
+                         verbose, debug);
              }, nb::arg("context"), nb::arg("max_threads_per_block"), nb::arg("min_blocks_per_multiprocessor"),
-	     nb::arg("cachedir")
+	     nb::arg("cachedir"), nb::arg("verbose"), nb::arg("debug"), nb::arg("custom_assembly_src")
 	     )
       .def(
           "set_restriction",
@@ -207,11 +212,10 @@ void declare_cuda_objects(nb::module_& m)
       .def(
           "__init__",
           [](dolfinx::fem::CUDAAssembler* assembler, const dolfinx::CUDA::Context& cuda_context,
-             const char* cudasrcdir) {
-            bool debug = true, verbose = false;
+             const char* cudasrcdir, bool verbose, bool debug) {
             CUjit_target target = dolfinx::CUDA::get_cujit_target(cuda_context);
             new (assembler) dolfinx::fem::CUDAAssembler(cuda_context, target, debug, cudasrcdir, verbose);
-          }, nb::arg("context"), nb::arg("cudasrcdir"));
+          }, nb::arg("context"), nb::arg("cudasrcdir"), nb::arg("verbose"), nb::arg("debug"));
   
 }
 
@@ -271,7 +275,7 @@ void declare_cuda_funcs(nb::module_& m)
             cuda_context, cuda_mesh, *cuda_dofmap0, *cuda_dofmap1,
             cuda_bc0, cuda_bc1, cuda_form.integrals(),
             cuda_form.constants(), cuda_form.coefficients(),
-            cuda_A, false);
+            cuda_A);
           assembler.set_diagonal(cuda_context, cuda_A, cuda_bc0);
         },
         nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"),
@@ -302,7 +306,7 @@ void declare_cuda_funcs(nb::module_& m)
           assembler.assemble_vector(
              cuda_context, cuda_mesh, *cuda_dofmap0,
              cuda_form.integrals(), cuda_form.constants(),
-             cuda_form.coefficients(), cuda_b, false);
+             cuda_form.coefficients(), cuda_b);
           
         },
         nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"), nb::arg("b"),
@@ -318,7 +322,7 @@ void declare_cuda_funcs(nb::module_& m)
           return assembler.assemble_scalar(
              cuda_context, cuda_mesh,
              cuda_form.integrals(), cuda_form.constants(),
-             cuda_form.coefficients(), false);
+             cuda_form.coefficients());
 	},
 	nb::arg("context"), nb::arg("assembler"), nb::arg("form"), nb::arg("mesh"),
 	"Assemble scalar integral on GPU."
@@ -345,7 +349,7 @@ void declare_cuda_funcs(nb::module_& m)
             assembler.lift_bc(
               cuda_context, cuda_mesh, *form->dofmap(0), *form->dofmap(1),
               form->integrals(), form->constants(), form->coefficients(),
-              *bcs[i], x0, scale, cuda_b, false
+              *bcs[i], x0, scale, cuda_b
             );
           }
 

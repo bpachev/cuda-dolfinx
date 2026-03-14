@@ -2214,6 +2214,7 @@ static const char** nvrtc_compiler_options(
     "--device-as-default-execution-space",
     nvrtc_options_gpuarch(target),
     "--device-debug",
+    "-Xptxas=-v",
     "--generate-line-info"};
 
   const char** compile_options;
@@ -2501,7 +2502,6 @@ CUDA::Module dolfinx::fem::compile_form_assembly_module(
   std::string ptx;
   auto ptxfile = std::filesystem::path(cachedir) / (name + ".ptx");
   if (!std::filesystem::exists(ptxfile)) {
-    
     int num_program_headers = 0;
     const char** program_headers = NULL;
     const char** program_include_names = NULL;
