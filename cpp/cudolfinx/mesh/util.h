@@ -11,6 +11,7 @@
 #include <dolfinx/fem/CoordinateElement.h>
 #include <dolfinx/fem/Form.h>
 #include <algorithm>
+#include <optional>
 
 namespace dolfinx {
 namespace mesh {
@@ -100,7 +101,7 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   mesh.topology()->index_map(0)->local_to_global(input_dofmap, input_dofmap_global);
   auto new_mesh
       = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
-		                   mesh.comm(), x, xshape, partitioner);
+		                   mesh.comm(), x, xshape, partitioner, std::nullopt);
   return new_mesh;
 }
 
