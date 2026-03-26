@@ -13,7 +13,7 @@ import pathlib
 from typing import *
 import ufl
 import ffcx
-from ffcx_backends.jit import compile_forms
+from ffcx_backends.cuda.jit import compile_forms
 
 # TODO generalize interface to include Expressions
 def ffcx_jit(
