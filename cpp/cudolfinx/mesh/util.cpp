@@ -101,6 +101,8 @@ std::vector<std::int32_t> dolfinx::mesh::active_ghost_entities(
 {
   std::vector<std::int32_t> ghost_entities;
   MPI_Comm comm = topology->comm();
+  // no need for ghosting if there is only one process
+  if (dolfinx::MPI::size(comm) == 1) return ghost_entities;
   int rank = dolfinx::MPI::rank(comm);
   int tdim = topology->dim();
   int ent_dim = (integral_type == fem::IntegralType::cell) ? tdim : tdim-1;
