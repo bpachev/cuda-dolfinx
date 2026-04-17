@@ -61,9 +61,9 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
     V = fe.functionspace(domain, element)
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
-    x = ufl.SpatialCoordinate(domain)
-    f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
-    g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
+    #x = ufl.SpatialCoordinate(domain)
+    #f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
+    #g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
     a = inner(grad(u), grad(v)) * dx
     #L = inner(f, v) * dx + inner(g, v) * ds
 
@@ -109,10 +109,13 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
 
 if __name__ == "__main__":
     parser = ap.ArgumentParser()
-    parser.add_argument("--res", default=10, type=int, help="Number of subdivisions in each dimension.")
+    parser.add_argument("--res", default=10, type=int,
+        help="Number of subdivisions in each dimension.")
     parser.add_argument("--degree", default=1, type=int, help="Polynomial degree.")
-    parser.add_argument("--no-sum-factorization", default=False, action="store_true", help="Disable sum factorization")
-    parser.add_argument("--no-cuda", default=False, action="store_true", help="Disable GPU acceleration.")
+    parser.add_argument("--no-sum-factorization", default=False, action="store_true",
+        help="Disable sum factorization")
+    parser.add_argument("--no-cuda", default=False, action="store_true",
+        help="Disable GPU acceleration.")
     args = parser.parse_args()
 
     main(

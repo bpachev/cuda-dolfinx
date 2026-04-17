@@ -112,6 +112,7 @@ section-order = [
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
+"examples/*py" = ["D100"] # undocumented-public-module
 "test*.py" = [
     "D100", # undocumented-public-module
     "D103", # undocumented-public-function

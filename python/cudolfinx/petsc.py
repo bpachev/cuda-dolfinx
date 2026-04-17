@@ -21,10 +21,9 @@ from dolfinx.fem.function import Function
 
 
 class NonlinearProblem:
-    """High-level class for solving nonlinear variational problems
-    with PETSc SNES on the GPU, adapted from and and resembling
-    the interface of dolfinx.fem.petsc.NonlinearProblem.
+    """High-level class for solving nonlinear variational problems with PETSc SNES on the GPU.
 
+    It is adapted from and and resembles the interface of dolfinx.fem.petsc.NonlinearProblem.
     (currently not supporting block/multi-form problems)
     """
 
@@ -146,8 +145,9 @@ class NonlinearProblem:
         x: PETSc.Vec,  # type: ignore[name-defined]
         b: PETSc.Vec,  # type: ignore[name-defined]
     ) -> None:
-        """Assemble the residual ``F(u)`` on the GPU, called by PETSc SNES
-        on every function evaluation.
+        """Assemble the residual ``F(u)`` on the GPU.
+
+        This is called by PETSc SNES on every function evaluation.
 
         Note: For the line searches, PETSc has an internal work vector
         also for the residual, which it passes as the ``b`` argument to this function.
@@ -190,8 +190,9 @@ class NonlinearProblem:
         A: PETSc.Mat,  # type: ignore[name-defined]
         P: PETSc.Mat,  # type: ignore[name-defined]
     ) -> None:
-        """Assemble the Jacobian (and optional preconditioner) on the GPU,
-        called by PETSc SNES on every Jacobian evaluation.
+        """Assemble the Jacobian (and optional preconditioner) on the GPU.
+
+        This is called by PETSc SNES on every Jacobian evaluation.
         """
         # copy x to u
         x.copy(self._u.x.petsc_vec)

@@ -21,7 +21,8 @@ def compute_universal_dofmap(mesh, V, res=1000):
     dofs_to_cells = np.zeros(num_local_dofs, dtype=int)
     for i, cell in enumerate(c_to_dofs):
         for dof in cell:
-            if dof >= num_local_dofs: continue
+            if dof >= num_local_dofs:
+                continue
             dofs_to_cells[dof] = i
     dof_coords = V.tabulate_dof_coordinates()[:num_local_dofs]
     cell_coords = mesh.geometry.x[mesh.geometry.dofmap]
@@ -35,7 +36,8 @@ def compute_universal_dofmap(mesh, V, res=1000):
         keys_to_dofs = {}
         keys = []
         for d_coords, d_cell_coords in zip(dof_coords, dof_cell_coords):
-            k = (tuple(d_coords.tolist()), tuple(sorted([tuple(arr.tolist()) for arr in d_cell_coords])))
+            k = (tuple(d_coords.tolist()),
+                tuple(sorted([tuple(arr.tolist()) for arr in d_cell_coords])))
             keys_to_dofs[k] = i
             keys.append(k)
             i += 1

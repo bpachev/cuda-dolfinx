@@ -142,11 +142,20 @@ def main(res, cuda=True, degree=1, dim=3, repeats=1):
 
 if __name__ == "__main__":
     parser = ap.ArgumentParser()
-    parser.add_argument("--res", default=10, type=int, help="Number of subdivisions in each dimension.")
-    parser.add_argument("--repeats", default=1, type=int, help="Number of times to repeat the experiment.")
+    parser.add_argument("--res", default=10, type=int,
+        help="Number of subdivisions in each dimension.")
+    parser.add_argument("--repeats", default=1, type=int,
+        help="Number of times to repeat the experiment.")
     parser.add_argument("--degree", default=1, type=int, help="Polynomial degree.")
     parser.add_argument("--dim", default=3, type=int, help="Geometric dimension.")
-    parser.add_argument("--no-cuda", default=False, action="store_true", help="Disable GPU acceleration.")
+    parser.add_argument("--no-cuda", default=False, action="store_true",
+        help="Disable GPU acceleration.")
     args = parser.parse_args()
 
-    main(res=args.res, cuda = not args.no_cuda, degree=args.degree, dim=args.dim, repeats=args.repeats)
+    main(
+        res=args.res,
+        cuda = not args.no_cuda,
+        degree=args.degree,
+        dim=args.dim,
+        repeats=args.repeats
+    )

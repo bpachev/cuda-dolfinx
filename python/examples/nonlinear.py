@@ -9,8 +9,6 @@ import time
 
 import petsc4py
 from mpi4py import MPI
-
-petsc4py.init(comm=MPI.COMM_WORLD)
 from petsc4py import PETSc
 
 import numpy as np
@@ -23,6 +21,9 @@ from dolfinx import mesh
 from dolfinx.fem.petsc import NonlinearProblem
 from ufl import dx, grad, inner
 
+petsc4py.init(comm=MPI.COMM_WORLD)
+
+
 # petsc logging to see GPU utilization, CpuToGpu and GpuToCpu times, etc.
 opts = PETSc.Options()
 opts.setValue("log_view", ":petsc.log")
@@ -30,6 +31,7 @@ PETSc.Log.begin()
 
 
 def create_mesh(res: int = 10, dim: int = 3):
+    """Create mesh."""
     if dim == 3:
         return mesh.create_box(
             comm=MPI.COMM_WORLD,
