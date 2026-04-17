@@ -110,4 +110,3 @@ def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
         res.append((name, wrapped_source))
 
     return res, integral_tensor_indices
-

@@ -294,11 +294,10 @@ def form(
 # Cache this so we don't create multiple copies of the same CUDAMesh
 @functools.cache
 def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64]):
-  """Create device-side mesh data."""
-  if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
-    return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
-  elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
-    return _cucpp.fem.CUDAMesh_float64(cpp_mesh)
-  else:
-    raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")
-
+    """Create device-side mesh data."""
+    if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
+        return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
+    elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
+        return _cucpp.fem.CUDAMesh_float64(cpp_mesh)
+    else:
+        raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")
