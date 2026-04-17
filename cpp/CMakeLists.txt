@@ -21,6 +21,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Do not enable compler-specific extensions
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+enable_language(CUDA)
+set(CMAKE_CUDA_FLAGS " -lineinfo")
 # ------------------------------------------------------------------------------
 # Get GIT changeset, if available
 find_program(GIT_FOUND git)

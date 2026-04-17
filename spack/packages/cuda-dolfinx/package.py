@@ -17,12 +17,14 @@ class CudaDolfinx(CMakePackage):
     license("LGPL-3.0-or-later", checked_by="bpachev")
 
     version("main", branch="main")
-    version("0.9.0", sha256="5c93155e58eee139985e9e9341cf7d8b29f8c9cbc51ccdf05134cdfb70ae105d")
+    version("0.10.0", tag="v0.10.post1")
+    version("0.9.0", tag="v0.9.0")
 
     depends_on("cxx", type="build")
-
-    depends_on("fenics-dolfinx@0.9+petsc+adios2", when="@0.9:")
-    depends_on("py-fenics-dolfinx@0.9", when="@0.9:")
+    depends_on("fenics-dolfinx@0.10+petsc+adios2", when="@0.10:")
+    depends_on("py-fenics-dolfinx@0.10", when="@0.10:")
+    depends_on("fenics-dolfinx@0.9+petsc+adios2", when="@0.9")
+    depends_on("py-fenics-dolfinx@0.9", when="@0.9")
     depends_on("petsc+shared+mpi+cuda")
 
     root_cmakelists_dir = "cpp"

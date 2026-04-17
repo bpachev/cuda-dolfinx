@@ -5,20 +5,26 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 import argparse as ap
+
 from mpi4py import MPI
 from petsc4py import PETSc
+
 try:
     import cudolfinx as cufem
 except ImportError:
     print("Must have cudolfinx to test CUDA assembly.")
 
-from dolfinx import fem as fe, mesh
-from dolfinx.fem import petsc as fe_petsc
-import numpy as np
-import ufl
 import time
-from ufl import dx, ds, grad, inner 
+
+import numpy as np
+
 import basix
+import ufl
+from dolfinx import fem as fe
+from dolfinx import mesh
+from dolfinx.fem import petsc as fe_petsc
+from ufl import dx, grad, inner
+
 
 def create_mesh(res: int = 10):
     """Create a uniform tetrahedral mesh on the unit cube.
@@ -27,11 +33,10 @@ def create_mesh(res: int = 10):
     ----------
     res - Number of subdivisions along each dimension
 
-    Returns
+    Returns:
     ----------
     mesh - The mesh object.
     """
-
     return mesh.create_box(
             comm = MPI.COMM_WORLD,
             points = ((0,0,0), (1, 1, 1)),
@@ -42,9 +47,7 @@ def create_mesh(res: int = 10):
         )
 
 def main(res, cuda=True, sum_factorization=True, degree=1):
-    """Assembles a stiffness matrix for the Poisson problem with the given resolution.
-    """
-
+    """Assembles a stiffness matrix for the Poisson problem with the given resolution."""
     domain = create_mesh(res)
     # Tensor product element
     family = basix.ElementFamily.P
@@ -58,11 +61,11 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
     V = fe.functionspace(domain, element)
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
-    x = ufl.SpatialCoordinate(domain)
-    f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
-    g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
+    #x = ufl.SpatialCoordinate(domain)
+    #f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
+    #g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
     a = inner(grad(u), grad(v)) * dx
-    L = inner(f, v) * dx + inner(g, v) * ds
+    #L = inner(f, v) * dx + inner(g, v) * ds
 
     facets = mesh.locate_entities_boundary(
       domain,
@@ -73,7 +76,7 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
     dofs = fe.locate_dofs_topological(V=V, entity_dim=domain.topology.dim-1, entities=facets)
     bc = fe.dirichletbc(value=PETSc.ScalarType(0), dofs=dofs, V=V)
 
-    form_compiler_options = {"sum_factorization": sum_factorization}  
+    form_compiler_options = {"sum_factorization": sum_factorization}
 
     if cuda:
         a = cufem.form(a, form_compiler_options=form_compiler_options)
@@ -106,10 +109,13 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
 
 if __name__ == "__main__":
     parser = ap.ArgumentParser()
-    parser.add_argument("--res", default=10, type=int, help="Number of subdivisions in each dimension.")
+    parser.add_argument("--res", default=10, type=int,
+        help="Number of subdivisions in each dimension.")
     parser.add_argument("--degree", default=1, type=int, help="Polynomial degree.")
-    parser.add_argument("--no-sum-factorization", default=False, action="store_true", help="Disable sum factorization")
-    parser.add_argument("--no-cuda", default=False, action="store_true", help="Disable GPU acceleration.")
+    parser.add_argument("--no-sum-factorization", default=False, action="store_true",
+        help="Disable sum factorization")
+    parser.add_argument("--no-cuda", default=False, action="store_true",
+        help="Disable GPU acceleration.")
     args = parser.parse_args()
 
     main(

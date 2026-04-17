@@ -415,7 +415,6 @@ void lift_bc_facet(
 /// Function to compile all assembly kernels for a form, with caching
 CUDA::Module compile_form_assembly_module(
   const CUDA::Context& cuda_context,
-  CUjit_target target,
   std::string module_source,
   std::string name,
   std::string cachedir,

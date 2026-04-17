@@ -8,6 +8,7 @@
 
 #include <cudolfinx/common/CUDA.h>
 #include <cuda.h>
+#include <cstdint>
 #include <map>
 
 namespace dolfinx {

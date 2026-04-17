@@ -20,7 +20,7 @@ LABEL description="cuDOLFINx"
 ARG PYTHON_VERSION
 
 WORKDIR /src
-RUN git clone --depth 1 --branch v0.10.0 https://github.com/bpachev/cuda-dolfinx.git
+RUN git clone --depth 1 --branch v0.10.0.post2 https://github.com/bpachev/cuda-dolfinx.git
 
 RUN cd cuda-dolfinx && \
     mkdir -p build-real && \

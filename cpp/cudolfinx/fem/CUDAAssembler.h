@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Benjamin Pachev, James D. Trotter
+// Copyright (C) 2024 Bengamin Pachev, James D. Trotter
 //
 // This file is part of cuDOLFINX
 //
@@ -66,7 +66,6 @@ public:
   /// @param[in] cudasrcdir Path for outputting CUDA C++ code
   CUDAAssembler(
     const CUDA::Context& cuda_context,
-    CUjit_target target,
     bool debug,
     const char* cudasrcdir,
     bool verbose);

@@ -146,6 +146,25 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
                    cuda_context, V, bcs);
              },
           nb::arg("context"), nb::arg("V"), nb::arg("bcs"))
+      .def(
+          "__init__",
+          [](dolfinx::fem::CUDADirichletBC<T,U>* bc, std::vector<std::shared_ptr<dolfinx::fem::FunctionSpace<T>>>& V_list,
+            const std::vector<std::shared_ptr<const dolfinx::fem::DirichletBC<T,U>>>& bcs,
+            std::vector<int32_t> offsets, std::vector<int32_t> ghost_offsets,
+            std::vector<std::vector<int32_t>>& restricted_inds)
+            {
+               std::vector<std::shared_ptr<std::map<::int32_t, std::int32_t>>> restrictions;
+               for (int i = 0; i < restricted_inds.size(); i++) {
+                 auto m = std::make_shared<std::map<std::int32_t, std::int32_t>>();
+                 for (int j = 0; j < restricted_inds[i].size(); j++) (*m)[restricted_inds[i][j]] = j;
+                 restrictions.push_back(m);
+               }
+               new (bc) dolfinx::fem::CUDADirichletBC<T,U>(
+                   V_list, bcs, offsets,
+                   ghost_offsets, restrictions);
+            },
+          nb::arg("V_list"), nb::arg("bcs"), nb::arg("offsets"),
+          nb::arg("ghost_offsets"), nb::arg("restricted_inds"))
       .def("update", &dolfinx::fem::CUDADirichletBC<T,U>::update, nb::arg("bcs"));
 
   std::string pyclass_cumesh_name = std::string("CUDAMesh_") + type;
@@ -196,10 +215,12 @@ void declare_cuda_objects(nb::module_& m)
   nb::class_<dolfinx::la::CUDAVector>(m, "CUDAVector", "Vector object on GPU")
       .def(
           "__init__",
-          [](dolfinx::la::CUDAVector* cuvec, const dolfinx::CUDA::Context& cuda_context, Vec x) {
-            new (cuvec) dolfinx::la::CUDAVector(cuda_context, x, false, false);
-          }, nb::arg("context"), nb::arg("x"))
+          [](dolfinx::la::CUDAVector* cuvec, const dolfinx::CUDA::Context& cuda_context,
+             Vec x, bool include_ghosts) {
+            new (cuvec) dolfinx::la::CUDAVector(cuda_context, x, false, include_ghosts);
+          }, nb::arg("context"), nb::arg("x"), nb::arg("include_ghosts") = false)
       .def("to_host", &dolfinx::la::CUDAVector::copy_vector_values_to_host)
+      .def("to_device", &dolfinx::la::CUDAVector::copy_vector_values_to_device)
       .def_prop_ro("vector",
           [](dolfinx::la::CUDAVector& cuvec) {
             Vec b = cuvec.vector();
@@ -213,10 +234,8 @@ void declare_cuda_objects(nb::module_& m)
           "__init__",
           [](dolfinx::fem::CUDAAssembler* assembler, const dolfinx::CUDA::Context& cuda_context,
              const char* cudasrcdir, bool verbose, bool debug) {
-            CUjit_target target = dolfinx::CUDA::get_cujit_target(cuda_context);
-            new (assembler) dolfinx::fem::CUDAAssembler(cuda_context, target, debug, cudasrcdir, verbose);
+            new (assembler) dolfinx::fem::CUDAAssembler(cuda_context, debug, cudasrcdir, verbose);
           }, nb::arg("context"), nb::arg("cudasrcdir"), nb::arg("verbose"), nb::arg("debug"));
-  
 }
 
 // Declare some functions that 

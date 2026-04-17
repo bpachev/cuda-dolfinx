@@ -12,6 +12,7 @@ namespace cudolfinx_wrappers
 {
 void fem(nb::module_& m);
 void petsc(nb::module_& m_fem);
+void coefficient(nb::module_& m);
 } // namespace cudolfinx_wrappers
 
 NB_MODULE(cpp, m)
@@ -27,4 +28,5 @@ NB_MODULE(cpp, m)
   nb::module_ fem = m.def_submodule("fem", "FEM module");
   cudolfinx_wrappers::fem(fem);
   cudolfinx_wrappers::petsc(fem);
+  cudolfinx_wrappers::coefficient(fem);
 }

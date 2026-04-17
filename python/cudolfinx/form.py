@@ -1,22 +1,29 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2024-2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Form compilation and wrapping."""
 
 import collections
-from cudolfinx.context import get_cuda_context
-from cudolfinx import cpp as _cucpp, jit
-from dolfinx import fem as fe
-from dolfinx import cpp as _cpp
-from dolfinx.jit import mpi_jit_decorator
 import functools
 import numpy as np
 import types
 import typing 
 import ufl
 import os
+import typing
 from pathlib import Path
+
+import numpy as np
+
+import ufl
+from cudolfinx import cpp as _cucpp
+from cudolfinx import jit
+from cudolfinx.context import get_cuda_context
+from dolfinx import cpp as _cpp
+from dolfinx import fem as fe
+from dolfinx.jit import mpi_jit_decorator
 
 DEFAULT_CUDA_JIT_ARGS = {
     "max_threads_per_block": 1024,
@@ -28,20 +35,16 @@ DEFAULT_CUDA_JIT_ARGS = {
 }
 
 class CUDAForm:
-    """CUDA wrapper class for a dolfinx.fem.Form
-    """
+    """CUDA wrapper class for a dolfinx.fem.Form."""
     
     def __init__(self, form: fe.Form, objects: list[typing.Any], module: types.ModuleType, jit_args: dict | None = {}):
-        """Initialize the wrapper
-        """
-
+        """Initialize the wrapper."""
         self._ctx = get_cuda_context()
         self._cuda_mesh = _create_mesh_on_device(form.mesh)
 
         self._dolfinx_form = form
         ufcx_form, cuda_source, tabulate_tensor_names = objects
         ufcx_form_addr = module.ffi.cast("uintptr_t", module.ffi.addressof(ufcx_form))
-        
         cpp_form = form._cpp_object
         if type(cpp_form) is _cpp.fem.Form_float32:
             form_cls = _cucpp.fem.CUDAForm_float32
@@ -74,36 +77,27 @@ class CUDAForm:
 
 
     def to_device(self):
-        """Copy host-side coefficients and constants to the device
-        """
-
+        """Copy host-side coefficients and constants to the device."""
         self._cuda_form.to_device(self._ctx)
 
     @property
     def cuda_form(self):
-        """Return the underlying cpp CUDAForm
-        """
-
+        """Return the underlying cpp CUDAForm."""
         return self._cuda_form
 
     @property
     def cuda_mesh(self):
-        """Return the underlying cpp CUDAMesh"""
-
+        """Return the underlying cpp CUDAMesh."""
         return self._cuda_mesh
 
     @property
     def dolfinx_form(self):
-        """Return the underlying Dolfinx form
-        """
-
+        """Return the underlying Dolfinx form."""
         return self._dolfinx_form
 
     @property
     def function_spaces(self):
-        """Return a list of FunctionSpaces corresponding to the form
-        """
-
+        """Return a list of FunctionSpaces corresponding to the form."""
         return self._dolfinx_form.function_spaces
 
 class BlockCUDAForm:
@@ -118,17 +112,18 @@ class BlockCUDAForm:
         ]] = None
     ):
         """Initialize the data structure."""
-
         self._forms = forms
         self._restrictions = restrictions
 
-        if not len(forms): raise ValueError("Must provide at least one form!")
-        if type(forms[0]) is CUDAForm: self._init_vector()
-        else: self._init_matrix()
+        if not len(forms):
+            raise ValueError("Must provide at least one form!")
+        if type(forms[0]) is CUDAForm:
+            self._init_vector()
+        else:
+            self._init_matrix()
 
-    def _get_restriction_offsets(self, forms, restrictions=None):
+    def _get_restriction_offsets(self, forms, restrictions=None, idx=0):
         """Get a list of offsets and restriction indices."""
-
         offset = 0
         ghost_offset = 0
         ghost_offsets = [ghost_offset]
@@ -136,7 +131,7 @@ class BlockCUDAForm:
         restriction_inds_list = []
         local_sizes = []
         for i, form in enumerate(forms):
-            dofmap = form.function_spaces[0].dofmap
+            dofmap = form.function_spaces[idx].dofmap
             local_size = dofmap.index_map.size_local
             if restrictions is not None:
                 restriction_inds = restrictions[i]
@@ -154,18 +149,28 @@ class BlockCUDAForm:
         # create offsets that can be directly added to the local index of the ghost
         # hence the need to subtract out the local size as the CUDADofMap doesn't know how many
         # restricted dofs are acutally local
-        # TODO just reimplement RestrictedDofMap from multiphenicsx instead of all this dancing around
-        ghost_offsets = [offsets[-1] + ghost_offset - local_size for ghost_offset,local_size in zip(ghost_offsets, local_sizes)]
+        # TODO just reimplement RestrictedDofMap from multiphenicsx
+        ghost_offsets = [
+            offsets[-1] + ghost_offset - local_size
+            for ghost_offset,local_size in zip(ghost_offsets, local_sizes)
+        ]
         return restriction_inds_list, offsets, ghost_offsets
-        
+
 
     def _init_vector(self):
         """Initialize vector form."""
-
+        self.arity = 1
         # don't need ghost offsets for vector assembly
         restriction_inds_list, self._offsets, ghost_offsets = self._get_restriction_offsets(
             self._forms, self._restrictions)
-        for form, offset, ghost_offset, restriction_inds in zip(self._forms, self._offsets, ghost_offsets, restriction_inds_list):
+        self._restriction_offsets = [
+            (restriction_inds_list, self._offsets, ghost_offsets)
+        ]
+        self._function_spaces = [[form.function_spaces[0] for form in self._forms]]
+
+        for form, offset, ghost_offset, restriction_inds in zip(
+            self._forms, self._offsets, ghost_offsets, restriction_inds_list
+        ):
             form.cuda_form.set_restriction(
                 [offset], [ghost_offset], [restriction_inds]
             )
@@ -175,18 +180,28 @@ class BlockCUDAForm:
 
     def _init_matrix(self):
         """Initialize matrix form."""
-
+        self.arity = 2
         row_forms = [row[0] for row in self._forms]
         col_forms = self._forms[0]
-        
+
         row_restrictions, row_offsets, row_ghost_offsets = self._get_restriction_offsets(
             row_forms, self._restrictions[0] if self._restrictions is not None else None
         )
 
         col_restrictions, col_offsets, col_ghost_offsets = self._get_restriction_offsets(
-            col_forms, self._restrictions[1] if self._restrictions is not None else None
+            col_forms, self._restrictions[1] if self._restrictions is not None else None,
+            idx=1 # need to extract the second FunctionSpace, not the first
         )
-  
+
+        self._restriction_offsets = [
+            (row_restrictions, row_offsets, row_ghost_offsets),
+            (col_restrictions, col_offsets, col_ghost_offsets)
+        ]
+        self._function_spaces = [
+            [form.function_spaces[0] for form in row_forms],
+            [form.function_spaces[1] for form in col_forms]
+        ]
+
         # restrict forms appropriately
         for i, row in enumerate(self._forms):
             for j, form in enumerate(row):
@@ -196,34 +211,56 @@ class BlockCUDAForm:
                         [row_restrictions[i], col_restrictions[j]]
                         )
 
+    def make_block_bc(self, bcs):
+        """Create blocked CUDADirichletBC objects usable with this form."""
+        blocked_bcs = []
+        V = self._function_spaces[0][0]
+        if type(V) is _cpp.fem.FunctionSpace_float32:
+            bc_cls = _cucpp.fem.CUDADirichletBC_float32
+        elif type(V) is _cpp.fem.FunctionSpace_float64:
+            bc_cls = _cucpp.fem.CUDADirichletBC_float64
+        else:
+            raise TypeError(
+                f"No corresponding CUDADirichletBC class for cpp"
+                f"FunctionSpace object of type '{type(V)}'"
+            )
+        _bcs = [bc._cpp_object for bc in bcs]
+        for idx in range(self.arity):
+            restrictions, offsets, ghost_offsets = self._restriction_offsets[idx]
+            _bc = bc_cls(
+                    self._function_spaces[idx],
+                    _bcs,
+                    offsets,
+                    ghost_offsets,
+                    restrictions)
+            blocked_bcs.append(_bc)
+
+        return blocked_bcs
+
+
     @property
     def forms(self):
         """Return the list of forms."""
-
         return self._forms
 
     @property
     def dolfinx_forms(self):
         """Return list of underlying dolfinx forms."""
-
         return [f.dolfinx_form for f in self._forms]
 
     @property
     def offsets(self):
         """Return list of offsets."""
-
         return self._offsets
 
     @property
     def local_size(self):
         """Return size of local vector."""
-
         return self._offsets[-1]
 
     @property
     def global_size(self):
         """Return size of global vector."""
-
         return self._global_size
 
 def form(
@@ -235,7 +272,6 @@ def form(
 
     def _create_form(form):
         """Recursively convert ufl.Forms to CUDAForm."""
-
         if isinstance(form, ufl.Form):
             objects, module = jit.ffcx_jit(form, **kwargs)
             dolfinx_form = fe.form(form, **kwargs)
@@ -243,24 +279,25 @@ def form(
         elif isinstance(form, collections.abc.Iterable):
             return list(map(lambda sub_form: _create_form(sub_form), form))
         else:
-            raise TypeError("Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!")
+            raise TypeError(
+                "Expected form to be a ufl.Form or an iterable, got type '{type(form)}'!"
+            )
 
     cuda_form = _create_form(form)
     if isinstance(form, collections.abc.Iterable):
         return BlockCUDAForm(cuda_form, restriction)
-    elif restriction is not None: return BlockCUDAForm([cuda_form], restriction)
-    else: return cuda_form
+    elif restriction is not None:
+        return BlockCUDAForm([cuda_form], restriction)
+    else:
+        return cuda_form
 
 # Cache this so we don't create multiple copies of the same CUDAMesh
 @functools.cache
 def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64]):
-  """Create device-side mesh data
-  """
-
-  if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
-    return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
-  elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
-    return _cucpp.fem.CUDAMesh_float64(cpp_mesh)
-  else:
-    raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")
-
+    """Create device-side mesh data."""
+    if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
+        return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
+    elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:
+        return _cucpp.fem.CUDAMesh_float64(cpp_mesh)
+    else:
+        raise ValueError(f"Cannot instantiate CUDAMesh for Mesh of type {type(cpp_mesh)}!")

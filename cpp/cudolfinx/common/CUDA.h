@@ -68,7 +68,6 @@ public:
   Module(
     const CUDA::Context& cuda_context,
     const std::string& ptx,
-    CUjit_target target,
     int num_module_load_options,
     CUjit_option* module_load_options,
     void** module_load_option_values,
@@ -130,8 +129,7 @@ std::string compile_cuda_cpp_to_ptx(
   int num_program_headers,
   const char** program_headers,
   const char** program_include_names,
-  int num_compile_options,
-  const char** compile_options,
+  std::vector<std::string>& compile_options,
   const char* program_src,
   const char* cudasrcdir,
   bool verbose);
@@ -149,8 +147,10 @@ template <typename T> void safeVectorCreate(CUdeviceptr* dptr, std::vector<T> ar
   safeMemcpyHtoD(*dptr, (void *)arr.data(), bytesize);
 }
 
-CUjit_target get_cujit_target(const Context& cuda_context);
-
+std::string get_compute_capability_string(const Context& cuda_context);
+std::vector<std::string> nvrtc_compiler_options(
+  const Context& cuda_context,
+  bool debug);
 } // namespace CUDA
 
 

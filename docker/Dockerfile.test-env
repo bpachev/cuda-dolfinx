@@ -25,18 +25,6 @@ ARG DOLFINX_CMAKE_BUILD_TYPE="Release"
 LABEL maintainer="Benjamin Pachev <benjaminpachev@gmail.com>"
 LABEL description="Modified FEniCS dev environment with CUDA PETSc installed."
 
-ARG ADIOS2_VERSION
-ARG DOXYGEN_VERSION
-ARG GMSH_VERSION
-ARG HDF5_VERSION
-ARG KAHIP_VERSION
-ARG PETSC_VERSION
-ARG SLEPC_VERSION
-ARG SPDLOG_VERSION
-ARG NUMPY_VERSION
-ARG MPICH_VERSION
-ARG OPENMPI_SERIES
-ARG OPENMPI_PATCH
 
 # The following ARGS are used in the dev-env layer.
 # They are safe defaults. They can be overridden by the user.
@@ -70,7 +58,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     cmake \
     g++ \
     gfortran \
-    libboost-dev \
+    libboost-all-dev \
     liblapack-dev \
     libopenblas-dev \
     libpugixml-dev \
@@ -153,7 +141,8 @@ ENV PETSC_OPTIONS="-use_gpu_aware_mpi 0" \
     PATH=/usr/local/bin:$PATH
 
 # Install Python packages (via pip)
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+RUN pip install --no-cache-dir --upgrade pip wheel && \
+    pip install 'setuptools<81.0.0' && \
     pip install --no-cache-dir cython numpy==${NUMPY_VERSION} && \
     pip install --no-cache-dir mpi4py
 
@@ -224,7 +213,7 @@ RUN apt-get -qq update && \
     --download-suitesparse \
     --with-scalar-type=real \
     --with-precision=double && \
-    make PETSC_ARCH=linux-gnu-real64-32-cuda ${MAKEFLAGS} all 
+    make PETSC_ARCH=linux-gnu-real64-32-cuda ${MAKEFLAGS} -j${BUILD_NP} all 
 
     # Install petsc4py
 RUN cd ${PETSC_DIR}/src/binding/petsc4py && \

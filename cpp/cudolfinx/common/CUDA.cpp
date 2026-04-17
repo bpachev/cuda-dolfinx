@@ -16,6 +16,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <vector>
 #include <iomanip>
 #include <iterator>
 #include <memory>
@@ -79,7 +80,6 @@ CUDA::Module::Module()
 CUDA::Module::Module(
   const CUDA::Context& cuda_context,
   const std::string& ptx,
-  CUjit_target target,
   int num_module_load_options,
   CUjit_option* module_load_options,
   void** module_load_option_values,
@@ -114,7 +114,7 @@ CUDA::Module::Module(
     debug ? (void*) 1 : (void*) 0,
     debug ? (void*) 0 : (void*) 1,
     debug ? (void*) 0 : (void*) 4,
-    (void*) target,
+    NULL,
   };
   int num_default_options =
     sizeof(default_options) /
@@ -303,8 +303,7 @@ std::string CUDA::compile_cuda_cpp_to_ptx(
   int num_program_headers,
   const char** program_headers,
   const char** program_include_names,
-  int num_compile_options,
-  const char** compile_options,
+  std::vector<std::string>& compile_options,
   const char* program_src,
   const char* cudasrcdir,
   bool verbose)
@@ -336,6 +335,11 @@ std::string CUDA::compile_cuda_cpp_to_ptx(
     }
   }
 
+  std::vector<const char *> c_str_compile_options;
+  for (const auto& s : compile_options) {
+    c_str_compile_options.push_back(s.c_str());
+  }
+
   // Create a CUDA C++ program based on the given source
   nvrtcResult nvrtc_err;
   nvrtcProgram program;
@@ -352,7 +356,7 @@ std::string CUDA::compile_cuda_cpp_to_ptx(
 
   // Compile the CUDA C++ program
   nvrtcResult nvrtc_compile_err = nvrtcCompileProgram(
-    program, num_compile_options, compile_options);
+    program, c_str_compile_options.size(), c_str_compile_options.data());
   if (nvrtc_compile_err != NVRTC_SUCCESS) {
     // If the compiler failed, obtain the compiler log
     std::string program_log;
@@ -509,7 +513,7 @@ void CUDA::safeStreamCreate(CUstream* streamptr, unsigned int flags)
   }
 }
 
-CUjit_target CUDA::get_cujit_target(const CUDA::Context& cuda_context)
+std::string CUDA::get_compute_capability_string(const CUDA::Context& cuda_context)
 {
   int compute_major, compute_minor;
   CUDA::safeDeviceGetAttribute(
@@ -520,33 +524,28 @@ CUjit_target CUDA::get_cujit_target(const CUDA::Context& cuda_context)
             &compute_minor,
             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
             cuda_context.device());
-
-  int compute_level = 10*compute_major + compute_minor;
-  std::map<int, CUjit_target> targets = {
-        {30, CU_TARGET_COMPUTE_30}, {32, CU_TARGET_COMPUTE_32},
-        {35, CU_TARGET_COMPUTE_35}, {37, CU_TARGET_COMPUTE_37},
-        {50, CU_TARGET_COMPUTE_50}, {52, CU_TARGET_COMPUTE_52},
-        {53, CU_TARGET_COMPUTE_53}, {60, CU_TARGET_COMPUTE_60},
-        {61, CU_TARGET_COMPUTE_61}, {62, CU_TARGET_COMPUTE_62},
-        {70, CU_TARGET_COMPUTE_70}, {72, CU_TARGET_COMPUTE_72},
-        {75, CU_TARGET_COMPUTE_75}, {80, CU_TARGET_COMPUTE_80},
-        {86, CU_TARGET_COMPUTE_86}, {87, CU_TARGET_COMPUTE_87},
-        {89, CU_TARGET_COMPUTE_89}, {90, CU_TARGET_COMPUTE_90}
-  }; 
- 
-  auto it = targets.find(compute_level);
-  if (it != targets.end()) {
-      return it->second;
-  }
-  else {
-     std::cout << "Unrecognized compute level " << compute_level << "." << std::endl;
-     it = targets.lower_bound(compute_level);
-     if (it == targets.begin()) throw std::runtime_error("Compute level is too low for fallback!");
-     else {
-       it--;
-       std::cout << " Falling back to " << it->first << "." << std::endl;
-       return it->second;
-     }
-  }
+  return std::to_string(compute_major) + std::to_string(compute_minor);
 }
+
+/// Configure compiler options for CUDA C++ code
+std::vector<std::string> CUDA::nvrtc_compiler_options(
+  const CUDA::Context& cuda_context,
+  bool debug)
+{
+  std::string gpuarch_option = "--gpu-architecture=compute_" + 
+    CUDA::get_compute_capability_string(cuda_context);
+  std::vector<std::string> compile_options = {
+    "--device-as-default-execution-space",
+    gpuarch_option
+  };
+
+  if (debug) {
+    compile_options.push_back("--device-debug");
+    compile_options.push_back("--generate-line-info");
+    compile_options.push_back("-Xptxas=-v");
+  }
+
+  return compile_options;
+}
+
 
