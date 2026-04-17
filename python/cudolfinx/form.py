@@ -27,12 +27,10 @@ DEFAULT_CUDA_JIT_ARGS = {
 }
 
 class CUDAForm:
-    """CUDA wrapper class for a dolfinx.fem.Form
-    """
+    """CUDA wrapper class for a dolfinx.fem.Form."""
 
     def __init__(self, form: fe.Form, jit_args: typing.Optional[dict] = {}):
-        """Initialize the wrapper
-        """
+        """Initialize the wrapper."""
         self._ctx = get_cuda_context()
         self._cuda_mesh = _create_mesh_on_device(form.mesh)
 
@@ -74,31 +72,27 @@ class CUDAForm:
 
 
     def to_device(self):
-        """Copy host-side coefficients and constants to the device
-        """
+        """Copy host-side coefficients and constants to the device."""
         self._cuda_form.to_device(self._ctx)
 
     @property
     def cuda_form(self):
-        """Return the underlying cpp CUDAForm
-        """
+        """Return the underlying cpp CUDAForm."""
         return self._cuda_form
 
     @property
     def cuda_mesh(self):
-        """Return the underlying cpp CUDAMesh"""
+        """Return the underlying cpp CUDAMesh."""
         return self._cuda_mesh
 
     @property
     def dolfinx_form(self):
-        """Return the underlying Dolfinx form
-        """
+        """Return the underlying Dolfinx form."""
         return self._dolfinx_form
 
     @property
     def function_spaces(self):
-        """Return a list of FunctionSpaces corresponding to the form
-        """
+        """Return a list of FunctionSpaces corresponding to the form."""
         return self._dolfinx_form.function_spaces
 
 class BlockCUDAForm:
@@ -282,8 +276,7 @@ def form(
 # Cache this so we don't create multiple copies of the same CUDAMesh
 @functools.cache
 def _create_mesh_on_device(cpp_mesh: typing.Union[_cpp.mesh.Mesh_float32, _cpp.mesh.Mesh_float64]):
-  """Create device-side mesh data
-  """
+  """Create device-side mesh data."""
   if type(cpp_mesh) is _cpp.mesh.Mesh_float32:
     return _cucpp.fem.CUDAMesh_float32(cpp_mesh)
   elif type(cpp_mesh) is _cpp.mesh.Mesh_float64:

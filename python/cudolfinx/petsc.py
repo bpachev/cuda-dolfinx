@@ -23,7 +23,7 @@ from dolfinx.fem.function import Function
 class NonlinearProblem:
     """High-level class for solving nonlinear variational problems
     with PETSc SNES on the GPU, adapted from and and resembling
-    the interface of dolfinx.fem.petsc.NonlinearProblem
+    the interface of dolfinx.fem.petsc.NonlinearProblem.
 
     (currently not supporting block/multi-form problems)
     """
@@ -40,7 +40,7 @@ class NonlinearProblem:
         petsc_options: dict | None = None,
         cuda_jit_options: dict | None = None,
     ):
-        """Initialise the GPU nonlinear problem
+        """Initialise the GPU nonlinear problem.
 
         Args:
         F: UFL form(s) representing the residual
@@ -147,7 +147,7 @@ class NonlinearProblem:
         b: PETSc.Vec,  # type: ignore[name-defined]
     ) -> None:
         """Assemble the residual ``F(u)`` on the GPU, called by PETSc SNES
-        on every function evaluation
+        on every function evaluation.
 
         Note: For the line searches, PETSc has an internal work vector
         also for the residual, which it passes as the ``b`` argument to this function.
@@ -191,7 +191,7 @@ class NonlinearProblem:
         P: PETSc.Mat,  # type: ignore[name-defined]
     ) -> None:
         """Assemble the Jacobian (and optional preconditioner) on the GPU,
-        called by PETSc SNES on every Jacobian evaluation
+        called by PETSc SNES on every Jacobian evaluation.
         """
         # copy x to u
         x.copy(self._u.x.petsc_vec)
@@ -211,7 +211,7 @@ class NonlinearProblem:
             P.assemble()
 
     def solve(self) -> Function:
-        """Solve the nonlinear problem with PETSc SNES
+        """Solve the nonlinear problem with PETSc SNES.
 
         Note:
         It is the caller's responsibility to check convergence, either with
@@ -251,7 +251,7 @@ class NonlinearProblem:
         return self._u
 
     def __del__(self) -> None:
-        """Destroy PETSc objects created internally"""
+        """Destroy PETSc objects created internally."""
         for obj in filter(
             None,
             (
@@ -269,12 +269,12 @@ class NonlinearProblem:
 
     @property
     def F(self) -> Form:
-        """Compiled dolfinx residual form"""
+        """Compiled dolfinx residual form."""
         return self._cuda_F.dolfinx_form
 
     @property
     def J(self) -> Form:
-        """Compiled dolfinx Jacobian form"""
+        """Compiled dolfinx Jacobian form."""
         return self._cuda_J.dolfinx_form
 
     @property
@@ -287,50 +287,50 @@ class NonlinearProblem:
 
     @property
     def cuda_F(self) -> CUDAForm:
-        """GPU residual form"""
+        """GPU residual form."""
         return self._cuda_F
 
     @property
     def cuda_J(self) -> CUDAForm:
-        """GPU Jacobian form"""
+        """GPU Jacobian form."""
         return self._cuda_J
 
     @property
     def cuda_A(self) -> CUDAMatrix:
-        """GPU Jacobian matrix"""
+        """GPU Jacobian matrix."""
         return self._cuda_A
 
     @property
     def cuda_b(self) -> CUDAVector:
-        """GPU residual vector"""
+        """GPU residual vector."""
         return self._cuda_b
 
     @property
     def A(self) -> PETSc.Mat:  # type: ignore[name-defined]
-        """Jacobian matrix (host-side PETSc Mat)"""
+        """Jacobian matrix (host-side PETSc Mat)."""
         return self._cuda_A.mat
 
     @property
     def P_mat(self) -> PETSc.Mat | None:  # type: ignore[name-defined]
-        """Preconditioner matrix (host-side PETSc Mat), or ``None``"""
+        """Preconditioner matrix (host-side PETSc Mat), or ``None``."""
         return self._cuda_P_mat.mat if self._cuda_P_mat is not None else None
 
     @property
     def b(self) -> PETSc.Vec:  # type: ignore[name-defined]
-        """Residual vector (host-side PETSc Vec)"""
+        """Residual vector (host-side PETSc Vec)."""
         return self._cuda_b.vector
 
     @property
     def x(self) -> PETSc.Vec:  # type: ignore[name-defined]
-        """SNES solution work vector"""
+        """SNES solution work vector."""
         return self._x
 
     @property
     def solver(self) -> PETSc.SNES:  # type: ignore[name-defined]
-        """The underlying PETSc SNES solver"""
+        """The underlying PETSc SNES solver."""
         return self._snes
 
     @property
     def u(self) -> Function:
-        """Solution function"""
+        """Solution function."""
         return self._u

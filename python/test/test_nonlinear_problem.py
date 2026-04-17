@@ -41,7 +41,7 @@ petsc_options = {
 
 def _make_problem(domain):
     """Create solution function, residual form, and BCs for a nonlinear problem
-    (1 + u^2) * inner(grad(u), grad(v)) * dx = f * v * dx  with u = 0 on boundary
+    (1 + u^2) * inner(grad(u), grad(v)) * dx = f * v * dx  with u = 0 on boundary.
     """
     V = fem.functionspace(domain, ("Lagrange", 1))
     u = fem.Function(V)
@@ -61,7 +61,7 @@ def _make_problem(domain):
 
 
 def _solve_cpu():
-    """Solve the nonlinear problem on the CPU with dolfinx NonlinearProblem"""
+    """Solve the nonlinear problem on the CPU with dolfinx NonlinearProblem."""
     domain = mesh.create_unit_square(MPI.COMM_WORLD, RES, RES)
     u, F, bcs = _make_problem(domain)
 
@@ -86,7 +86,7 @@ def _solve_cpu():
 
 
 def _solve_gpu():
-    """Solve the nonlinear problem on the CPU with cuda-dolfinx NonlinearProblem"""
+    """Solve the nonlinear problem on the CPU with cuda-dolfinx NonlinearProblem."""
     domain = mesh.create_unit_square(MPI.COMM_WORLD, RES, RES)
 
     if MPI.COMM_WORLD.size > 1:

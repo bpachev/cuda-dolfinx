@@ -42,7 +42,7 @@ def create_mesh(res: int = 10, dim: int = 3):
 
 
 def main(res: int = 30, degree: int = 1, dim: int = 3, cuda: bool = True):
-    """Solve a nonlinear problem on a CPU or GPU"""
+    """Solve a nonlinear problem on a CPU or GPU."""
     domain = create_mesh(res, dim=dim)
     comm = domain.comm
 

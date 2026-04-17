@@ -11,7 +11,7 @@ from dolfinx.fem import petsc as fe_petsc
 
 
 def compute_universal_dofmap(mesh, V, res=1000):
-    """Map the global array of dofs to unique geometric information
+    """Map the global array of dofs to unique geometric information.
 
     This is needed to compute maps between DG dofs on meshes with different partitioning schemes
     """
@@ -43,8 +43,7 @@ def compute_universal_dofmap(mesh, V, res=1000):
         return keys, keys_to_dofs
 
 def compare_parallel_matrices(mat1, mat2):
-    """Compare two distributed PETSc matrices
-    """
+    """Compare two distributed PETSc matrices."""
     _, _, data1 = mat1.getValuesCSR()
     _, _, data2 = mat2.getValuesCSR()
     sum1 = MPI.COMM_WORLD.gather(data1.sum(), root=0)
@@ -55,8 +54,7 @@ def compare_parallel_matrices(mat1, mat2):
         return np.allclose(sum1, sum2)
 
 def compare_parallel_vectors(vec1, vec2):
-    """Compare two distributed PETSc vectors
-    """
+    """Compare two distributed PETSc vectors."""
     sum1 = MPI.COMM_WORLD.gather(vec1.array[:].sum(), root=0)
     sum2 = MPI.COMM_WORLD.gather(vec2.array[:].sum(), root=0)
     if MPI.COMM_WORLD.rank == 0:
@@ -65,8 +63,7 @@ def compare_parallel_vectors(vec1, vec2):
         return np.allclose(sum1, sum2)
 
 def test_multigpu_assembly():
-    """Check assembly operations across multiple GPUs
-    """
+    """Check assembly operations across multiple GPUs."""
     domain = make_test_domain()
     regular_ufl = make_ufl()
     ghosted_domain = cufem.ghost_layer_mesh(domain)
@@ -92,7 +89,7 @@ def test_multigpu_assembly():
         fe_petsc.assemble_vector(regular_vec, form1)
         regular_vec.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
         cuda_vec = asm.assemble_vector(form2)
-        good = compare_parallel_vectors(regular_vec, cuda_vec.vector)
+        compare_parallel_vectors(regular_vec, cuda_vec.vector)
 
 if __name__ == "__main__":
 

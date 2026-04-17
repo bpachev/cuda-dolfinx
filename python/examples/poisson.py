@@ -47,8 +47,7 @@ def create_mesh(res: int = 10, dim: int = 3):
         return mesh.create_unit_square(MPI.COMM_WORLD, res, res)
 
 def main(res, cuda=True, degree=1, dim=3, repeats=1):
-    """Assembles a stiffness matrix for the Poisson problem with the given resolution.
-    """
+    """Assembles a stiffness matrix for the Poisson problem with the given resolution."""
     domain = create_mesh(res, dim=dim)
     comm = domain.comm
     if cuda and comm.size > 1:
@@ -137,6 +136,7 @@ def main(res, cuda=True, degree=1, dim=3, repeats=1):
         print(f"Res={res}, Num cells", domain.topology.index_map(domain.topology.dim).size_global)
         print(f"Dofs: {V.dofmap.index_map.size_global}")
         print(f"Average timing ({repeats} trials):")
+        print(f"Solution norm {sol_norm}")
         for k, v in max_timings.items():
             print(f"\t{k}: {max(v)}s")
 

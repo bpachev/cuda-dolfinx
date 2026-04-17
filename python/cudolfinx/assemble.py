@@ -24,8 +24,7 @@ from dolfinx.fem.function import Function, FunctionSpace
 
 
 def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
-  """Create PETSc Vector on device
-  """
+  """Create PETSc Vector on device."""
   index_map = L.function_spaces[0].dofmap.index_map
   bs = L.function_spaces[0].dofmap.index_map_bs
   size = (index_map.size_local * bs, index_map.size_global * bs)
@@ -34,23 +33,21 @@ def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   return PETSc.Vec().createCUDAWithArrays(cpuarray=arr, size=size, bsize=bs, comm=index_map.comm)
 
 class CUDAAssembler:
-  """Class for assembly on the GPU
-  """
+  """Class for assembly on the GPU."""
 
   def __init__(self):
-    """Initialize the assembler
-    """
+    """Initialize the assembler."""
     self._ctx = get_cuda_context()
     self._tmpdir = tempfile.TemporaryDirectory()
     self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
 
   def assemble_matrix(self,
       a: CUDAForm,
-      mat: typing.Optional[_cucpp.fem.CUDAMatrix] = None,
-      bcs: typing.Optional[typing.Union[list[DirichletBC], CUDADirichletBC]] = [],
+      mat: _cucpp.fem.CUDAMatrix | None = None,
+      bcs: list[DirichletBC] | CUDADirichletBC | None = [],
       diagonal: float = 1.0,
-      constants: typing.Optional[list] = None,
-      coeffs: typing.Optional[list] = None,
+      constants: list | None = None,
+      coeffs: list | None = None,
       zero: bool = True,
   ):
     """Assemble bilinear form into a matrix on the GPU.
@@ -105,13 +102,13 @@ class CUDAAssembler:
 
   def assemble_matrix_block(self,
     a: BlockCUDAForm,
-    mat: typing.Optional[CUDAMatrix] = None,
-    bcs: typing.Optional[list[typing.Any]] = None,
-    coeffs: typing.Optional[list[list[typing.Any]]] = None,
-    constants: typing.Optional[list[list[typing.Any]]] = None,
+    mat: CUDAMatrix | None = None,
+    bcs: list[typing.Any] | None = None,
+    coeffs: list[list[typing.Any]] | None = None,
+    constants: list[list[typing.Any]] | None = None,
     zero: bool = True
   ):
-    """Assemble block form into a matrix on the GPU"""
+    """Assemble block form into a matrix on the GPU."""
     if mat is None:
       mat = self.create_matrix_block(a)
 
@@ -135,10 +132,10 @@ class CUDAAssembler:
 
   def assemble_vector(self,
     b: CUDAForm,
-    vec: typing.Optional[CUDAVector] = None,
+    vec: CUDAVector | None = None,
     constants=None, coeffs=None, zero=True
   ):
-    """Assemble linear form into vector on GPU
+    """Assemble linear form into vector on GPU.
 
     Args:
         b: the linear form to use for assembly
@@ -166,10 +163,10 @@ class CUDAAssembler:
 
   def assemble_vector_block(self,
     b: BlockCUDAForm,
-    vec: typing.Optional[CUDAVector] = None,
+    vec: CUDAVector | None = None,
     constants=None, coeffs=None, zero=True
   ):
-    """Assemble block linear form into vector on GPU
+    """Assemble block linear form into vector on GPU.
 
     Args:
         b: the block linear form to use for assembly
@@ -203,7 +200,7 @@ class CUDAAssembler:
     b: CUDAForm,
     constants=None, coeffs=None
   ):
-    """Assemble scalar integral on GPU
+    """Assemble scalar integral on GPU.
 
     Args:
         b: the functional to use for assembly
@@ -223,15 +220,14 @@ class CUDAAssembler:
       b.cuda_mesh)
 
   def create_matrix(self, a: CUDAForm) -> CUDAMatrix:
-    """Create a CUDAMatrix from a given form
-    """
+    """Create a CUDAMatrix from a given form."""
     if not isinstance(a, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
     petsc_mat = _cucpp.fem.petsc.create_cuda_matrix(a.dolfinx_form._cpp_object)
     return CUDAMatrix(self._ctx, petsc_mat)
 
   def create_matrix_block(self, a: BlockCUDAForm) -> CUDAMatrix:
-    """Create a block matrix from a block form"""
+    """Create a block matrix from a block form."""
     if not isinstance(a, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got type '{type(a)}'")
 
@@ -241,8 +237,7 @@ class CUDAAssembler:
 
 
   def create_vector(self, b: CUDAForm) -> CUDAVector:
-    """Create a CUDAVector from a given form
-    """
+    """Create a CUDAVector from a given form."""
     if not isinstance(b, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got type '{type(b)}'.")
     petsc_vec = create_petsc_cuda_vector(b.dolfinx_form)
@@ -260,14 +255,13 @@ class CUDAAssembler:
     """Pack boundary conditions into a single object for use in assembly.
 
     The returned object is of type CUDADirichletBC and can be used in place of a list of
-    regular DirichletBCs. This is more efficient when performing multiple operations with the same list of 
+    regular DirichletBCs. This is more efficient when performing multiple operations with the same list of
     boundary conditions, or when boundary condition values need to change over time.
     """
     return CUDADirichletBC(self._ctx, bcs)
 
-  def pack_coefficients(self, a: CUDAForm, coefficients: typing.Optional[list[Function]]=None):
-    """Pack coefficients on device
-    """
+  def pack_coefficients(self, a: CUDAForm, coefficients: list[Function] | None=None):
+    """Pack coefficients on device."""
     if not isinstance(a, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
 
@@ -281,12 +275,12 @@ class CUDAAssembler:
   def apply_lifting(self,
     b: CUDAVector,
     a: list[CUDAForm],
-    bcs: typing.List[typing.Union[list[DirichletBC], CUDADirichletBC]],
-    x0: typing.Optional[list[CUDAVector]] = None,
+    bcs: list[list[DirichletBC] | CUDADirichletBC],
+    x0: list[CUDAVector] | None = None,
     scale: float = 1.0,
-    coeffs: typing.Optional[list[list[Function]]] = None
+    coeffs: list[list[Function]] | None = None
   ):
-    """GPU equivalent of apply_lifting
+    """GPU equivalent of apply_lifting.
 
     Args:
        b: CUDAVector to modify
@@ -334,7 +328,7 @@ class CUDAAssembler:
   def apply_lifting_block(self,
     b: CUDAVector,
     a: CUDABlockForm,
-    bcs: typing.Union[list[DirichletBC], typing.Any],
+    bcs: list[DirichletBC] | typing.Any,
     x0: CUDAVector | None = None,
     alpha: float = 1.0,
     set_bcs=True
@@ -379,9 +373,9 @@ class CUDAAssembler:
 
   def set_bc(self,
     b: CUDAVector,
-    bcs: typing.Union[list[DirichletBC], CUDADirichletBC],
+    bcs: list[DirichletBC] | CUDADirichletBC,
     V: FunctionSpace,
-    x0: typing.Optional[CUDAVector] = None,
+    x0: CUDAVector | None = None,
     scale: float = 1.0,
   ):
     """Set boundary conditions on device.

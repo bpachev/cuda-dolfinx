@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""Main module for CUDOLFINx"""
+"""Main module for CUDOLFINx."""
 
 from cudolfinx.assemble import CUDAAssembler
 from cudolfinx.coefficient import Coefficient

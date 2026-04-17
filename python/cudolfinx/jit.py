@@ -4,8 +4,7 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-"""Routines for manipulating generated FFCX code
-"""
+"""Routines for manipulating generated FFCX code."""
 
 import pathlib
 from typing import *
@@ -16,8 +15,7 @@ from dolfinx import fem
 
 
 def get_tabulate_tensor_sources(form: fem.Form):
-    """Given a compiled fem.Form, extract the C source code of the tabulate tensors
-    """
+    """Given a compiled fem.Form, extract the C source code of the tabulate tensors."""
     module_file = pathlib.Path(form.module.__file__)
     source_filename = module_file.name.split(".")[0] + ".c"
     source_file = module_file.parent.joinpath(source_filename)
@@ -63,11 +61,11 @@ def get_tabulate_tensor_sources(form: fem.Form):
 cuda_tabulate_tensor_header = """
     #define alignas(x)
     #define restrict __restrict__
-    
+
     typedef unsigned char uint8_t;
     typedef unsigned int uint32_t;
     typedef double ufc_scalar_t;
-    
+
     extern "C" __global__
     void tabulate_tensor_{factory_name}({scalar_type}* restrict A,
                                         const {scalar_type}* restrict w,
@@ -79,8 +77,7 @@ cuda_tabulate_tensor_header = """
 """
 
 def _convert_dtype_to_str(dtype: Any):
-    """Convert numpy dtype to named C type
-    """
+    """Convert numpy dtype to named C type."""
     if dtype == np.float32:
         return "float"
     elif dtype == np.float64:
@@ -89,8 +86,7 @@ def _convert_dtype_to_str(dtype: Any):
         raise TypeError(f"Unsupported dtype: '{dtype}'")
 
 def get_wrapped_tabulate_tensors(form: fem.Form, backend="cuda"):
-    """Given a fem.Form, wrap the tabulate tensors for use on a GPU
-    """
+    """Given a fem.Form, wrap the tabulate tensors for use on a GPU."""
     if backend != "cuda":
         raise NotImplementedError(f"Backend '{backend}' not yet supported.")
 

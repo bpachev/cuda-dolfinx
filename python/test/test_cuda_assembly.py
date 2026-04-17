@@ -10,7 +10,6 @@ import numpy as np
 
 import cudolfinx as cufem
 import ufl
-from basix.ufl import element
 from dolfinx import fem as fe
 from dolfinx import mesh
 
@@ -21,30 +20,14 @@ from dolfinx import mesh
 A set of simple variational forms to test the correctness of CUDA-accelerated assembly.
 """
 
-
-def make_mixed_form():
-  """Test compilation of a mixed form.
-  """
-  domain = mesh.create_unit_square(MPI.COMM_WORLD, 10, 10, mesh.CellType.triangle)
-  el = element("P", domain.basix_cell(), 1)
-
-  V = fe.functionspace(domain, el)
-  u = ufl.TrialFunction(V)
-  p = ufl.TestFunction(V)
-  A = ufl.dot(ufl.grad(u), ufl.grad(p)) * ufl.dx
-  F = fe.form(A)
-  mat = fe.assemble_matrix(F)
-
 def make_test_domain():
-  """Make a test domain
-  """
+  """Make a test domain."""
   n = 19
   m = 27
   return mesh.create_unit_square(MPI.COMM_WORLD, n, m, mesh.CellType.triangle)
 
 def make_ufl(domain=None):
-  """Create the UFL needed for making the forms
-  """
+  """Create the UFL needed for making the forms."""
   if domain is None:
     domain = make_test_domain()
 
@@ -87,18 +70,15 @@ def make_ufl(domain=None):
            "matrix": [cell_jac, exterior_jac, interior_jac]}
 
 def compare_mats(matcsr, matpetsc):
-  """Compare a native FEniCS MatrixCSR to a PETSc matrix
-  """
-  indptr, indices, data = matpetsc.getValuesCSR()
-  bad = np.where(~np.isclose(matcsr.data, data))[0]
+  """Compare a native FEniCS MatrixCSR to a PETSc matrix."""
+  _indptr, _indices, data = matpetsc.getValuesCSR()
   assert np.allclose(matcsr.data, data)
 
 def compare_vecs(vecfenics, vecpetsc):
   assert np.allclose(vecfenics.array, vecpetsc.array)
 
 def test_cuda_assembly():
-  """Check assembly on GPU
-  """
+  """Check assembly on GPU."""
   ufl_forms = make_ufl()
   asm = cufem.CUDAAssembler()
 
@@ -124,8 +104,7 @@ def test_cuda_assembly():
     compare_mats(Mat1, Mat2.mat)
 
 def test_reassembly():
-  """Ensure correct assembly when coefficients are updated
-  """
+  """Ensure correct assembly when coefficients are updated."""
   ufl_forms = make_ufl()
   coeff = ufl_forms["coeff"]
   cuda_vec_form = cufem.form(ufl_forms["vector"][0])
@@ -146,8 +125,7 @@ def test_reassembly():
     compare_vecs(vec_fe, vec_cuda.vector)
 
 def test_lifting():
-  """Ensure lifting and bc setting work correctly
-  """
+  """Ensure lifting and bc setting work correctly."""
   ufl_forms = make_ufl()
   asm = cufem.CUDAAssembler()
   for vec_form, mat_form in zip(ufl_forms['vector'][1:2], ufl_forms['matrix'][1:2]):

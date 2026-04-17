@@ -14,8 +14,7 @@ from dolfinx.fem.function import Function
 
 
 class Coefficient:
-    """CUDA wrapper class for dolfinx.fem.Function.
-    """
+    """CUDA wrapper class for dolfinx.fem.Function."""
     def __init__(self,
                  f: Function):
         """Initialize with a given dolfinx Function f. Create a copy of

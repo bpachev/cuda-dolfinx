@@ -23,7 +23,7 @@ import ufl
 from dolfinx import fem as fe
 from dolfinx import mesh
 from dolfinx.fem import petsc as fe_petsc
-from ufl import ds, dx, grad, inner
+from ufl import dx, grad, inner
 
 
 def create_mesh(res: int = 10):
@@ -47,8 +47,7 @@ def create_mesh(res: int = 10):
         )
 
 def main(res, cuda=True, sum_factorization=True, degree=1):
-    """Assembles a stiffness matrix for the Poisson problem with the given resolution.
-    """
+    """Assembles a stiffness matrix for the Poisson problem with the given resolution."""
     domain = create_mesh(res)
     # Tensor product element
     family = basix.ElementFamily.P
@@ -66,7 +65,7 @@ def main(res, cuda=True, sum_factorization=True, degree=1):
     f = 10*ufl.exp(-((x[0]-.5)**2 + (x[1]-.5)**2 + (x[2]-.5)**2) / .02)
     g = ufl.sin(5*x[0])*ufl.sin(5*x[1])
     a = inner(grad(u), grad(v)) * dx
-    L = inner(f, v) * dx + inner(g, v) * ds
+    #L = inner(f, v) * dx + inner(g, v) * ds
 
     facets = mesh.locate_entities_boundary(
       domain,

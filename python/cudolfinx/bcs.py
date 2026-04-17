@@ -12,12 +12,10 @@ from dolfinx.fem.bcs import DirichletBC
 
 
 class CUDADirichletBC:
-  """Represents a collection of boundary conditions
-  """
+  """Represents a collection of boundary conditions."""
 
-  def __init__(self, ctx, bcs: typing.List[DirichletBC]):
-    """Initialize a collection of boundary conditions
-    """
+  def __init__(self, ctx, bcs: list[DirichletBC]):
+    """Initialize a collection of boundary conditions."""
     self.bcs = bcs
     self._function_spaces = []
     self._bc_lists = []
@@ -40,9 +38,9 @@ class CUDADirichletBC:
 
   def _make_device_bc(self,
           V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64],
-          cpp_bcs: typing.List[typing.Union[_cpp.fem.DirichletBC_float32, _cpp.fem.DirichletBC_float64]]
+          cpp_bcs: list[typing.Union[_cpp.fem.DirichletBC_float32, _cpp.fem.DirichletBC_float64]]
           ):
-      """Create device bc object wrapping a list of bcs for the same function space"""
+      """Create device bc object wrapping a list of bcs for the same function space."""
       if type(V) is _cpp.fem.FunctionSpace_float32:
         return _cucpp.fem.CUDADirichletBC_float32(self._ctx, V, cpp_bcs)
       elif type(V) is _cpp.fem.FunctionSpace_float64:
@@ -51,8 +49,7 @@ class CUDADirichletBC:
         raise TypeError(f"Invalid type for cpp FunctionSpace object '{type(V)}'")
 
   def _get_cpp_bcs(self, V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64]):
-    """Get cpp CUDADirichletBC object
-    """
+    """Get cpp CUDADirichletBC object."""
     # Use this to avoid needing hashes (which might not be supported)
     # Usually there will be a max of two function spaces associated with a set of bcs
     try:
@@ -62,7 +59,7 @@ class CUDADirichletBC:
         # return empty collection
         return self._make_device_bc(V, [])
 
-  def update(self, bcs: typing.Optional[typing.List[DirichletBC]] = None):
+  def update(self, bcs: typing.Optional[list[DirichletBC]] = None):
     """Update a subset of the boundary conditions.
 
     Used for cases with time-varying boundary conditions whose device-side values
