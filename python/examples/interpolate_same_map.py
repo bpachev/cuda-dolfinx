@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
-import argparse as ap
-from mpi4py import MPI
-from petsc4py import PETSc
-import cudolfinx as cufem
-from dolfinx import fem, mesh
-from dolfinx.fem import petsc as fe_petsc
-import basix.ufl
-import basix
-import numpy as np
 import time
 
+from mpi4py import MPI
+
+import numpy as np
+
+import basix
+import basix.ufl
+import cudolfinx as cufem
+from dolfinx import fem, mesh
 
 domain = mesh.create_unit_cube(MPI.COMM_WORLD, 20, 20, 20, mesh.CellType.tetrahedron)
 element_to = basix.ufl.element("Lagrange", "tetrahedron", 4)
@@ -31,7 +30,7 @@ if __name__ == "__main__":
     start = time.perf_counter()
     for _ in range(niter):
         u_true.interpolate(u_from)
-    
+
     end = time.perf_counter()
     print(f"CPU Time: {1e3*(end-start)/niter:.2f} ms")
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
-import numpy as np
-from mpi4py import MPI
-from dolfinx import mesh, fem
-import cudolfinx as cufem
 import time
+
+from mpi4py import MPI
+
+import numpy as np
+
+import cudolfinx as cufem
+from dolfinx import fem, mesh
 
 domain = mesh.create_box(
     MPI.COMM_WORLD,
@@ -32,7 +35,7 @@ if __name__ == "__main__":
     start = time.perf_counter()
     for _ in range(niter):
         u_true.interpolate(u_from)
-    
+
     end = time.perf_counter()
     print(f"CPU Time: {1e3*(end-start)/niter:.2f} ms")
 

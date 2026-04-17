@@ -5,10 +5,13 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from __future__ import annotations
-from cudolfinx import cpp as _cucpp
-from dolfinx.fem.function import Function
-from cudolfinx.context import get_cuda_context
+
 import numpy as np
+
+from cudolfinx import cpp as _cucpp
+from cudolfinx.context import get_cuda_context
+from dolfinx.fem.function import Function
+
 
 class Coefficient:
     """CUDA wrapper class for dolfinx.fem.Function.

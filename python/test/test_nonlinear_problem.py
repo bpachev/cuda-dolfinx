@@ -4,16 +4,17 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-import numpy as np
-import ufl
-from ufl import dx, grad, inner
 from mpi4py import MPI
 from petsc4py import PETSc
-import dolfinx
+
+import numpy as np
+
+import cudolfinx as cufem
+import ufl
+from cudolfinx.petsc import NonlinearProblem as cuNonlinearProblem
 from dolfinx import fem, mesh
 from dolfinx.fem.petsc import NonlinearProblem
-import cudolfinx as cufem
-from cudolfinx.petsc import NonlinearProblem as cuNonlinearProblem
+from ufl import dx, grad, inner
 
 # resolution
 RES = 50
@@ -39,8 +40,7 @@ petsc_options = {
 
 
 def _make_problem(domain):
-    """
-    Create solution function, residual form, and BCs for a nonlinear problem
+    """Create solution function, residual form, and BCs for a nonlinear problem
     (1 + u^2) * inner(grad(u), grad(v)) * dx = f * v * dx  with u = 0 on boundary
     """
     V = fem.functionspace(domain, ("Lagrange", 1))
@@ -62,7 +62,6 @@ def _make_problem(domain):
 
 def _solve_cpu():
     """Solve the nonlinear problem on the CPU with dolfinx NonlinearProblem"""
-
     domain = mesh.create_unit_square(MPI.COMM_WORLD, RES, RES)
     u, F, bcs = _make_problem(domain)
 
@@ -129,7 +128,7 @@ def test_nonlinear_problem():
     assert cpu_funcevals == gpu_funcevals, (
         "Number of function evaluations differs between CPU and GPU"
     )
-    
+
     for norm, label in zip(
         [PETSc.NormType.NORM_1, PETSc.NormType.NORM_2, PETSc.NormType.NORM_INFINITY],
         ["L1", "L2", "Linf"]
@@ -138,7 +137,7 @@ def test_nonlinear_problem():
         gpu_norm = gpu_u.x.petsc_vec.norm(norm)
         if MPI.COMM_WORLD.rank == 0:
             print(f"CPU: {cpu_norm:.16e}\t GPU: {gpu_norm:.16e} ({label} norm)")
-        
+
         assert np.isclose(cpu_norm, gpu_norm), (
             f"{label} norm of solutions differs between CPU and GPU"
         )

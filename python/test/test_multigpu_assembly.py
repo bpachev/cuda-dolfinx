@@ -1,26 +1,28 @@
-from test_cuda_assembly import make_test_domain, make_ufl
+
 from mpi4py import MPI
+from petsc4py import PETSc
+
+import numpy as np
+from test_cuda_assembly import make_test_domain, make_ufl
+
 import cudolfinx as cufem
 from dolfinx import fem as fe
 from dolfinx.fem import petsc as fe_petsc
-import numpy as np
-from petsc4py import PETSc
-import json
+
 
 def compute_universal_dofmap(mesh, V, res=1000):
     """Map the global array of dofs to unique geometric information
 
     This is needed to compute maps between DG dofs on meshes with different partitioning schemes
     """
-    
     num_local_dofs = V.dofmap.index_map.size_local
-    
+
     c_to_dofs = V.dofmap.map()
     dofs_to_cells = np.zeros(num_local_dofs, dtype=int)
     for i, cell in enumerate(c_to_dofs):
         for dof in cell:
             if dof >= num_local_dofs: continue
-            dofs_to_cells[dof] = i 
+            dofs_to_cells[dof] = i
     dof_coords = V.tabulate_dof_coordinates()[:num_local_dofs]
     cell_coords = mesh.geometry.x[mesh.geometry.dofmap]
     dof_cell_coords = cell_coords[dofs_to_cells]
@@ -43,7 +45,6 @@ def compute_universal_dofmap(mesh, V, res=1000):
 def compare_parallel_matrices(mat1, mat2):
     """Compare two distributed PETSc matrices
     """
-
     _, _, data1 = mat1.getValuesCSR()
     _, _, data2 = mat2.getValuesCSR()
     sum1 = MPI.COMM_WORLD.gather(data1.sum(), root=0)
@@ -56,7 +57,6 @@ def compare_parallel_matrices(mat1, mat2):
 def compare_parallel_vectors(vec1, vec2):
     """Compare two distributed PETSc vectors
     """
-
     sum1 = MPI.COMM_WORLD.gather(vec1.array[:].sum(), root=0)
     sum2 = MPI.COMM_WORLD.gather(vec2.array[:].sum(), root=0)
     if MPI.COMM_WORLD.rank == 0:
@@ -67,7 +67,6 @@ def compare_parallel_vectors(vec1, vec2):
 def test_multigpu_assembly():
     """Check assembly operations across multiple GPUs
     """
-
     domain = make_test_domain()
     regular_ufl = make_ufl()
     ghosted_domain = cufem.ghost_layer_mesh(domain)
@@ -96,5 +95,5 @@ def test_multigpu_assembly():
         good = compare_parallel_vectors(regular_vec, cuda_vec.vector)
 
 if __name__ == "__main__":
-    
+
     test_multigpu_assembly()

@@ -4,16 +4,15 @@
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
-import petsc4py
-from petsc4py import PETSc
 from mpi4py import MPI
-from dolfinx import fem as fe, mesh
-from dolfinx.fem import petsc
-import ufl
+
 import numpy as np
+
 import cudolfinx as cufem
-from cudolfinx.form import BlockCUDAForm
-from basix.ufl import element, mixed_element
+import ufl
+from basix.ufl import element
+from dolfinx import fem as fe
+from dolfinx import mesh
 
 """
 @author Benjamin Pachev <benjamin.pachev@gmail.com>
@@ -26,10 +25,9 @@ A set of simple variational forms to test the correctness of CUDA-accelerated as
 def make_mixed_form():
   """Test compilation of a mixed form.
   """
-
   domain = mesh.create_unit_square(MPI.COMM_WORLD, 10, 10, mesh.CellType.triangle)
   el = element("P", domain.basix_cell(), 1)
-  
+
   V = fe.functionspace(domain, el)
   u = ufl.TrialFunction(V)
   p = ufl.TestFunction(V)
@@ -40,7 +38,6 @@ def make_mixed_form():
 def make_test_domain():
   """Make a test domain
   """
-
   n = 19
   m = 27
   return mesh.create_unit_square(MPI.COMM_WORLD, n, m, mesh.CellType.triangle)
@@ -48,10 +45,9 @@ def make_test_domain():
 def make_ufl(domain=None):
   """Create the UFL needed for making the forms
   """
-
   if domain is None:
     domain = make_test_domain()
-  
+
   V = fe.functionspace(domain, ("P", 1))
   V_dg = fe.functionspace(domain, ("DG", 1))
   u = fe.Function(V)
@@ -65,7 +61,7 @@ def make_ufl(domain=None):
   kappa.interpolate(lambda x: np.sin(x[0])*np.cos(x[1]))
 
   functional = (
-    ufl.exp(u)*kappa * ufl.dx + 
+    ufl.exp(u)*kappa * ufl.dx +
     u*kappa * ufl.ds +
     ufl.avg(u_dg**2) * ufl.avg(kappa) * ufl.dS
   )
@@ -93,7 +89,6 @@ def make_ufl(domain=None):
 def compare_mats(matcsr, matpetsc):
   """Compare a native FEniCS MatrixCSR to a PETSc matrix
   """
-
   indptr, indices, data = matpetsc.getValuesCSR()
   bad = np.where(~np.isclose(matcsr.data, data))[0]
   assert np.allclose(matcsr.data, data)
@@ -104,11 +99,9 @@ def compare_vecs(vecfenics, vecpetsc):
 def test_cuda_assembly():
   """Check assembly on GPU
   """
-
-
   ufl_forms = make_ufl()
   asm = cufem.CUDAAssembler()
-  
+
   for i, form in enumerate(ufl_forms["scalar"]):
     fenics_form = fe.form(form)
     cuda_form = cufem.form(form)
@@ -133,7 +126,6 @@ def test_cuda_assembly():
 def test_reassembly():
   """Ensure correct assembly when coefficients are updated
   """
-
   ufl_forms = make_ufl()
   coeff = ufl_forms["coeff"]
   cuda_vec_form = cufem.form(ufl_forms["vector"][0])
@@ -156,7 +148,6 @@ def test_reassembly():
 def test_lifting():
   """Ensure lifting and bc setting work correctly
   """
-
   ufl_forms = make_ufl()
   asm = cufem.CUDAAssembler()
   for vec_form, mat_form in zip(ufl_forms['vector'][1:2], ufl_forms['matrix'][1:2]):
@@ -175,7 +166,6 @@ def test_lifting():
 
 def test_block_assembly():
     """Test that basic block assembly works properly."""
-
     domain = make_test_domain()
     V1 = fe.functionspace(domain, ("P", 1))
     V2 = fe.functionspace(domain, ("P", 1))
@@ -189,7 +179,7 @@ def test_block_assembly():
 
     asm = cufem.CUDAAssembler()
     cuda_L = cufem.form([b1,b2])
-    
+
     vec_cuda = asm.create_vector_block(cuda_L)
     asm.assemble_vector_block(cuda_L, vec_cuda)
 

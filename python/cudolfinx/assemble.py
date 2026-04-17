@@ -6,30 +6,26 @@
 
 from __future__ import annotations
 
-import collections
-import functools
-import typing
 import tempfile
+import typing
 
-import dolfinx
-from dolfinx import cpp as _cpp
+from petsc4py import PETSc
+
+import numpy as np
+
+from cudolfinx import cpp as _cucpp
+from cudolfinx.bcs import CUDADirichletBC
+from cudolfinx.context import get_cuda_context
+from cudolfinx.form import BlockCUDAForm, CUDAForm
+from cudolfinx.la import CUDAMatrix, CUDAVector
 from dolfinx.fem.bcs import DirichletBC
 from dolfinx.fem.forms import Form
 from dolfinx.fem.function import Function, FunctionSpace
-from dolfinx import fem as fe
-from cudolfinx.context import get_cuda_context
-from cudolfinx import cpp as _cucpp
-from cudolfinx.bcs import CUDADirichletBC
-from cudolfinx.form import CUDAForm, BlockCUDAForm
-from cudolfinx.la import CUDAMatrix, CUDAVector
-from petsc4py import PETSc
-import numpy as np
 
 
 def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   """Create PETSc Vector on device
   """
-
   index_map = L.function_spaces[0].dofmap.index_map
   bs = L.function_spaces[0].dofmap.index_map_bs
   size = (index_map.size_local * bs, index_map.size_global * bs)
@@ -44,7 +40,6 @@ class CUDAAssembler:
   def __init__(self):
     """Initialize the assembler
     """
-
     self._ctx = get_cuda_context()
     self._tmpdir = tempfile.TemporaryDirectory()
     self._cpp_object = _cucpp.fem.CUDAAssembler(self._ctx, self._tmpdir.name)
@@ -80,7 +75,6 @@ class CUDAAssembler:
         accumulated.
 
     """
-
     if not isinstance(a, CUDAForm):
       raise TypeError("Expected CUDAForm, got '{type(a)}'")
 
@@ -99,7 +93,7 @@ class CUDAAssembler:
     _bc1 = bc_collection._get_cpp_bcs(a.dolfinx_form.function_spaces[1])
     # For now always re-copy to device on assembly
     # This assumes something has changed on the host
-    a.to_device() 
+    a.to_device()
     self.pack_coefficients(a, coeffs)
     if zero: _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
     _cucpp.fem.assemble_matrix_on_device(
@@ -118,21 +112,20 @@ class CUDAAssembler:
     zero: bool = True
   ):
     """Assemble block form into a matrix on the GPU"""
-
     if mat is None:
       mat = self.create_matrix_block(a)
 
     if zero:
       _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
 
-    _bc0, _bc1 = a.make_block_bc(bcs) 
+    _bc0, _bc1 = a.make_block_bc(bcs)
 
     for i, row in enumerate(a.forms):
       for j, form in enumerate(row):
         _coeffs = coeffs[i][j] if coeffs is not None else None
         _constants = constants[i][j] if constants is not None else None
         form.to_device()
-        self.pack_coefficients(form, coeffs) 
+        self.pack_coefficients(form, coeffs)
         _cucpp.fem.assemble_matrix_on_device(
           self._ctx, self._cpp_object, form.cuda_form,
           form.cuda_mesh, mat._cpp_object, _bc0, _bc1
@@ -155,7 +148,6 @@ class CUDAAssembler:
            If an empty list is passed, no repacking will be performed.
         zero: Whether to zero vector entries before assembly (defaults to true)
     """
-
     if not isinstance(b, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
 
@@ -163,11 +155,11 @@ class CUDAAssembler:
       vec = self.create_vector(b)
     # For now always re-copy to device on assembly
     # This assumes something has changed on the host
-    b.to_device() 
-    self.pack_coefficients(b, coeffs) 
+    b.to_device()
+    self.pack_coefficients(b, coeffs)
     if zero:
       _cucpp.fem.zero_vector_entries(self._ctx, self._cpp_object, vec._cpp_object)
-    
+
     _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b.cuda_form,
       b.cuda_mesh, vec._cpp_object)
     return vec
@@ -187,7 +179,6 @@ class CUDAAssembler:
            If an empty list is passed, no repacking will be performed.
         zero: Whether to zero vector entries before assembly (defaults to true)
     """
-
     if not isinstance(b, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got '{type(b)}'")
 
@@ -202,7 +193,7 @@ class CUDAAssembler:
       raise ValueError(f"Expected constants to be None or a list of length: '{num_forms}', got '{len(_constants)}' instead!")
     if len(_coeffs) != num_forms:
       raise ValueError(f"Expected coeffs to be None or a list of length: '{num_forms}', got '{len(_coeffs)}' instead!")
-    
+
     if zero:
       _cucpp.fem.zero_vector_entries(self._ctx, self._cpp_object, vec._cpp_object)
     for form, form_constants, form_coeffs in zip(b.forms, _constants, _coeffs):
@@ -220,15 +211,14 @@ class CUDAAssembler:
         coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
            If an empty list is passed, no repacking will be performed.
     """
-
     if not isinstance(b, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
 
     # For now always re-copy to device on assembly
     # This assumes something has changed on the host
-    b.to_device() 
-    self.pack_coefficients(b, coeffs) 
-    
+    b.to_device()
+    self.pack_coefficients(b, coeffs)
+
     return  _cucpp.fem.assemble_scalar_on_device(self._ctx, self._cpp_object, b.cuda_form,
       b.cuda_mesh)
 
@@ -242,11 +232,10 @@ class CUDAAssembler:
 
   def create_matrix_block(self, a: BlockCUDAForm) -> CUDAMatrix:
     """Create a block matrix from a block form"""
-
     if not isinstance(a, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got type '{type(a)}'")
 
-    _cpp_forms = [[cuda_form.cuda_form for cuda_form in row] for row in a.forms] 
+    _cpp_forms = [[cuda_form.cuda_form for cuda_form in row] for row in a.forms]
     petsc_mat = _cucpp.fem.petsc.create_cuda_matrix_block(_cpp_forms)
     return CUDAMatrix(self._ctx, petsc_mat)
 
@@ -261,7 +250,6 @@ class CUDAAssembler:
 
   def create_vector_block(self, b: BlockCUDAForm) -> CUDAVector:
     """Create a CUDAVector from a given form."""
-
     if not isinstance(b, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got type '{type(b)}')")
 
@@ -275,7 +263,6 @@ class CUDAAssembler:
     regular DirichletBCs. This is more efficient when performing multiple operations with the same list of 
     boundary conditions, or when boundary condition values need to change over time.
     """
-
     return CUDADirichletBC(self._ctx, bcs)
 
   def pack_coefficients(self, a: CUDAForm, coefficients: typing.Optional[list[Function]]=None):
@@ -283,7 +270,7 @@ class CUDAAssembler:
     """
     if not isinstance(a, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got type '{type(a)}'.")
-  
+
     if coefficients is None:
       _cucpp.fem.pack_coefficients(self._ctx, self._cpp_object, a.cuda_form)
     else:
@@ -309,9 +296,8 @@ class CUDAAssembler:
        scale: scale of lifting
        coeffs: coefficients to (re-)pack
     """
- 
     if len(a) != len(bcs): raise ValueError("Lengths of forms and bcs must match!")
-    if x0 is not None and len(x0) != len(a): raise ValueError("Lengths of forms and x0 must match!") 
+    if x0 is not None and len(x0) != len(a): raise ValueError("Lengths of forms and x0 must match!")
 
     _x0 = [] if x0 is None else [x._cpp_object for x in x0]
     bc_collections = []
@@ -329,7 +315,7 @@ class CUDAAssembler:
       coeffs = [None] * len(a)
     elif not len(coeffs):
       coeffs = [[] for form in a]
-    
+
     cuda_forms = []
     cuda_mesh = None
     _bcs = []
@@ -354,7 +340,6 @@ class CUDAAssembler:
     set_bcs=True
   ):
     """Apply lifting with a single block form."""
-
     _x0 = [] if x0 is None else x0._cpp_object
     if type(bcs) is list:
       block_bc = a.make_block_bc(bcs)[0]
@@ -364,9 +349,9 @@ class CUDAAssembler:
       raise TypeError(
         f"Expected either a list of DirichletBCs or a _cpp.fem_CUDADirichletBC_float64/32, got '{type(bcs)}'"
       )
-    
+
     cuda_mesh = None
-    for row in a.forms: 
+    for row in a.forms:
       _bcs = []
       _x0_list = []
       _cuda_forms = []
@@ -408,7 +393,6 @@ class CUDAAssembler:
      x0: optional shift vector
      scale: scaling factor
     """
-
     if type(bcs) is list:
       bc_collection = self.pack_bcs(bcs)
     elif type(bcs) is CUDADirichletBC:
@@ -424,7 +408,7 @@ class CUDAAssembler:
 
     if x0 is None:
       _cucpp.fem.set_bc_on_device(
-        self._ctx, self._cpp_object, 
+        self._ctx, self._cpp_object,
         b._cpp_object, _bcs, scale
       )
     else:

@@ -6,21 +6,22 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
+
+from petsc4py import PETSc
 
 import ufl
+from cudolfinx.assemble import CUDAAssembler
+from cudolfinx.form import CUDAForm
+from cudolfinx.form import form as _cuda_form
+from cudolfinx.la import CUDAMatrix, CUDAVector
 from dolfinx.fem.bcs import DirichletBC
 from dolfinx.fem.forms import Form
 from dolfinx.fem.function import Function
-from cudolfinx.assemble import CUDAAssembler
-from cudolfinx.form import CUDAForm, form as _cuda_form
-from cudolfinx.la import CUDAMatrix, CUDAVector
-from petsc4py import PETSc
 
 
 class NonlinearProblem:
-    """
-    High-level class for solving nonlinear variational problems
+    """High-level class for solving nonlinear variational problems
     with PETSc SNES on the GPU, adapted from and and resembling
     the interface of dolfinx.fem.petsc.NonlinearProblem
 
@@ -39,8 +40,7 @@ class NonlinearProblem:
         petsc_options: dict | None = None,
         cuda_jit_options: dict | None = None,
     ):
-        """
-        Initialise the GPU nonlinear problem
+        """Initialise the GPU nonlinear problem
 
         Args:
         F: UFL form(s) representing the residual
@@ -55,7 +55,6 @@ class NonlinearProblem:
         petsc_options: Options forwarded to the PETSc SNES solver
         cuda_jit_options: Passed to the CUDA JIT compiler
         """
-
         # check types of forms
         assert isinstance(F, ufl.Form), (
             f"F must be a ufl.Form, got {type(F).__name__}. "
@@ -147,8 +146,7 @@ class NonlinearProblem:
         x: PETSc.Vec,  # type: ignore[name-defined]
         b: PETSc.Vec,  # type: ignore[name-defined]
     ) -> None:
-        """
-        Assemble the residual ``F(u)`` on the GPU, called by PETSc SNES
+        """Assemble the residual ``F(u)`` on the GPU, called by PETSc SNES
         on every function evaluation
 
         Note: For the line searches, PETSc has an internal work vector
@@ -156,7 +154,6 @@ class NonlinearProblem:
         This is the vector that must be updated with the assembled residual,
         and not the original residual vector created in ``__init__``
         """
-
         # copy x to u and update ghosts
         x.copy(self._u.x.petsc_vec)
         self._u.x.petsc_vec.ghostUpdate(
@@ -193,11 +190,9 @@ class NonlinearProblem:
         A: PETSc.Mat,  # type: ignore[name-defined]
         P: PETSc.Mat,  # type: ignore[name-defined]
     ) -> None:
-        """
-        Assemble the Jacobian (and optional preconditioner) on the GPU,
+        """Assemble the Jacobian (and optional preconditioner) on the GPU,
         called by PETSc SNES on every Jacobian evaluation
         """
-
         # copy x to u
         x.copy(self._u.x.petsc_vec)
         self._u.x.petsc_vec.ghostUpdate(
@@ -216,8 +211,7 @@ class NonlinearProblem:
             P.assemble()
 
     def solve(self) -> Function:
-        """
-        solve the nonlinear problem with PETSc SNES
+        """Solve the nonlinear problem with PETSc SNES
 
         Note:
         It is the caller's responsibility to check convergence, either with
@@ -236,7 +230,6 @@ class NonlinearProblem:
         Returns:
         The updated solution function(s) ``u``
         """
-
         # copy u to x
         self._u.x.petsc_vec.ghostUpdate(
             addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD

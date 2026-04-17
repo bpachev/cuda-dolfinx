@@ -5,18 +5,24 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 import argparse as ap
+
 from mpi4py import MPI
 from petsc4py import PETSc
+
 try:
     import cudolfinx as cufem
 except ImportError:
     pass
-from dolfinx import fem as fe, mesh
-from dolfinx.fem import petsc as fe_petsc
-import numpy as np
-import ufl
 import time
-from ufl import dx, ds, grad, inner 
+
+import numpy as np
+
+import ufl
+from dolfinx import fem as fe
+from dolfinx import mesh
+from dolfinx.fem import petsc as fe_petsc
+from ufl import ds, dx, grad, inner
+
 
 def create_mesh(res: int = 10, dim: int = 3):
     """Create a uniform tetrahedral mesh on the unit cube.
@@ -26,11 +32,10 @@ def create_mesh(res: int = 10, dim: int = 3):
     res - Number of subdivisions along each dimension
     dim - Geometric dimension of mesh
 
-    Returns
+    Returns:
     ----------
     mesh - The mesh object.
     """
-
     if dim == 3:
         return mesh.create_box(
             comm = MPI.COMM_WORLD,
@@ -44,7 +49,6 @@ def create_mesh(res: int = 10, dim: int = 3):
 def main(res, cuda=True, degree=1, dim=3, repeats=1):
     """Assembles a stiffness matrix for the Poisson problem with the given resolution.
     """
-
     domain = create_mesh(res, dim=dim)
     comm = domain.comm
     if cuda and comm.size > 1:

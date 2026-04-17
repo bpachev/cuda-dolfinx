@@ -5,6 +5,7 @@
 # SPDX-License-Identifier:    LGPL-3.0-or-later
 
 from petsc4py import PETSc
+
 from cudolfinx import cpp as _cucpp
 
 _device = None
@@ -12,7 +13,7 @@ _device = None
 def _init_device():
   """Initialize PETSc device
   """
-  global _device  
+  global _device
   d = PETSc.Device()
   d.create(PETSc.Device.Type.CUDA)
   _device = d
@@ -20,7 +21,6 @@ def _init_device():
 def get_device():
   """Return PETSc device
   """
-
   global _device
   if _device is None:
     _init_device()
@@ -31,5 +31,5 @@ def get_cuda_context():
   """
   global _device
   if _device is None:
-     _init_device() 
+     _init_device()
   return _cucpp.fem.CUDAContext()
