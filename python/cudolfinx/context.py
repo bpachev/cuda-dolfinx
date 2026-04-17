@@ -1,8 +1,9 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2024-2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""CUDA Context management."""
 
 from petsc4py import PETSc
 

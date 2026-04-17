@@ -1,8 +1,9 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Wrapper classes for linear algebra objects on the GPU."""
 
 from cudolfinx import cpp as _cucpp
 

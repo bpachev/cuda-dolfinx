@@ -1,8 +1,9 @@
-# Copyright (C) 2026 Chayanon Wichitrnithed
+# Copyright (C) 2026 Chayanon Wichitrnithed, Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Wrapper for Function."""
 
 from __future__ import annotations
 
@@ -17,8 +18,9 @@ class Coefficient:
     """CUDA wrapper class for dolfinx.fem.Function."""
     def __init__(self,
                  f: Function):
-        """Initialize with a given dolfinx Function f. Create a copy of
-        the global DOF vector on both host and device.
+        """Initialize with a given dolfinx Function f.
+
+        Creates a copy of the global DOF vector on both host and device.
         """
         self._ctx = get_cuda_context()
 
@@ -34,9 +36,9 @@ class Coefficient:
 
     def interpolate(self,
                     coeff0: Coefficient):
-        """Interpolate from another Coefficient object, modifying
-        the global DOF vector. Both must share the
-        same mesh and mapping to reference element.
+        """Interpolate from another Coefficient object.
+
+        Both must share the same mesh and mapping to reference element.
 
         Args:
             coeff0: A Coefficient object to interpolate from.

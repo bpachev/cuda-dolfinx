@@ -1,8 +1,9 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2024-2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""GPU-accelerated assembly routines."""
 
 from __future__ import annotations
 
@@ -22,6 +23,10 @@ from dolfinx.fem.bcs import DirichletBC
 from dolfinx.fem.forms import Form
 from dolfinx.fem.function import Function, FunctionSpace
 
+__all__ = [
+  "CUDAAssembler",
+  "create_petsc_cuda_vector",
+]
 
 def create_petsc_cuda_vector(L: Form) -> PETSc.Vec:
   """Create PETSc Vector on device."""
@@ -59,10 +64,13 @@ class CUDAAssembler:
             Degrees-of-freedom constrained by a boundary condition will
             have their rows/columns zeroed and the value ``diagonal``
             set on on the matrix diagonal.
+        diagonal: Value to set on the diagonal.
         constants: Constants that appear in the form. If not provided,
             any required coefficients will be computed.
-        coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
-           If an empty list is passed, no repacking will be performed.
+        coeffs: Optional list of form coefficients to repack.
+            If not specified, all will be repacked.
+            If an empty list is passed, no repacking will be performed.
+        zero: Whether to zero the matrix prior to assembly
 
     Returns:
         Matrix representation of the bilinear form ``a``.
@@ -92,7 +100,8 @@ class CUDAAssembler:
     # This assumes something has changed on the host
     a.to_device()
     self.pack_coefficients(a, coeffs)
-    if zero: _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
+    if zero:
+      _cucpp.fem.zero_matrix_entries(self._ctx, self._cpp_object, mat._cpp_object)
     _cucpp.fem.assemble_matrix_on_device(
        self._ctx, self._cpp_object, a.cuda_form,
        a.cuda_mesh, mat._cpp_object, _bc0, _bc1
@@ -141,8 +150,9 @@ class CUDAAssembler:
         b: the linear form to use for assembly
         vec: the vector to assemble into. Created if it doesn't exist
         constants: Form constants
-        coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
-           If an empty list is passed, no repacking will be performed.
+        coeffs: Optional list of form coefficients to repack.
+            If not specified, all will be repacked.
+            If an empty list is passed, no repacking will be performed.
         zero: Whether to zero vector entries before assembly (defaults to true)
     """
     if not isinstance(b, CUDAForm):
@@ -172,7 +182,8 @@ class CUDAAssembler:
         b: the block linear form to use for assembly
         vec: the vector to assemble into. Created if not provided
         constants: List of constants for each sub form
-        coeffs:  Optional list of form coefficients to repack. If not specified, all will be repacked.
+        coeffs: Optional list of form coefficients to repack.
+            If not specified, all will be repacked.
            If an empty list is passed, no repacking will be performed.
         zero: Whether to zero vector entries before assembly (defaults to true)
     """
@@ -187,9 +198,15 @@ class CUDAAssembler:
     _coeffs = [None]*num_forms if coeffs is None else coeffs
 
     if len(_constants) != num_forms:
-      raise ValueError(f"Expected constants to be None or a list of length: '{num_forms}', got '{len(_constants)}' instead!")
+      raise ValueError(
+        f"Expected constants to be None or a list of length: '{num_forms}',"
+        f" got '{len(_constants)}' instead!"
+      )
     if len(_coeffs) != num_forms:
-      raise ValueError(f"Expected coeffs to be None or a list of length: '{num_forms}', got '{len(_coeffs)}' instead!")
+      raise ValueError(
+        f"Expected coeffs to be None or a list of length: '{num_forms}',"
+        f" got '{len(_coeffs)}' instead!"
+      )
 
     if zero:
       _cucpp.fem.zero_vector_entries(self._ctx, self._cpp_object, vec._cpp_object)
@@ -205,8 +222,9 @@ class CUDAAssembler:
     Args:
         b: the functional to use for assembly
         constants: Form constants
-        coeffs: Optional list of form coefficients to repack. If not specified, all will be repacked.
-           If an empty list is passed, no repacking will be performed.
+        coeffs: Optional list of form coefficients to repack.
+            If not specified, all will be repacked.
+            If an empty list is passed, no repacking will be performed.
     """
     if not isinstance(b, CUDAForm):
       raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
@@ -248,15 +266,19 @@ class CUDAAssembler:
     if not isinstance(b, BlockCUDAForm):
       raise TypeError(f"Expected BlockCUDAForm, got type '{type(b)}')")
 
-    petsc_vec = PETSc.Vec().createCUDAWithArrays(cpuarray=np.zeros(b.local_size), size=(b.local_size, b.global_size))
+    petsc_vec = PETSc.Vec().createCUDAWithArrays(
+        cpuarray=np.zeros(b.local_size),
+        size=(b.local_size, b.global_size)
+    )
     return CUDAVector(self._ctx, petsc_vec)
 
   def pack_bcs(self, bcs: list[DirichletBC]) -> CUDADirichletBC:
     """Pack boundary conditions into a single object for use in assembly.
 
     The returned object is of type CUDADirichletBC and can be used in place of a list of
-    regular DirichletBCs. This is more efficient when performing multiple operations with the same list of
-    boundary conditions, or when boundary condition values need to change over time.
+    regular DirichletBCs. This is more efficient when performing multiple operations
+    with the same list of boundary conditions, or when
+    boundary condition values need to change over time.
     """
     return CUDADirichletBC(self._ctx, bcs)
 
@@ -290,8 +312,10 @@ class CUDAAssembler:
        scale: scale of lifting
        coeffs: coefficients to (re-)pack
     """
-    if len(a) != len(bcs): raise ValueError("Lengths of forms and bcs must match!")
-    if x0 is not None and len(x0) != len(a): raise ValueError("Lengths of forms and x0 must match!")
+    if len(a) != len(bcs):
+      raise ValueError("Lengths of forms and bcs must match!")
+    if x0 is not None and len(x0) != len(a):
+      raise ValueError("Lengths of forms and x0 must match!")
 
     _x0 = [] if x0 is None else [x._cpp_object for x in x0]
     bc_collections = []
@@ -302,7 +326,8 @@ class CUDAAssembler:
         bc_collections.append(bc_collection)
       else:
         raise TypeError(
-          f"Expected either a list of DirichletBC's or a CUDADirichletBC, got '{type(bc_collection)}'"
+          f"Expected either a list of DirichletBC's or a CUDADirichletBC,"
+          f" got '{type(bc_collection)}'"
         )
 
     if coeffs is None:
@@ -316,7 +341,8 @@ class CUDAAssembler:
     for form, bc_collection, form_coeffs in zip(a, bc_collections, coeffs):
       self.pack_coefficients(form, form_coeffs)
       cuda_forms.append(form.cuda_form)
-      if cuda_mesh is None: cuda_mesh = form.cuda_mesh
+      if cuda_mesh is None:
+        cuda_mesh = form.cuda_mesh
       _bcs.append(bc_collection._get_cpp_bcs(form.function_spaces[1]))
 
     _cucpp.fem.apply_lifting_on_device(
@@ -327,7 +353,7 @@ class CUDAAssembler:
 
   def apply_lifting_block(self,
     b: CUDAVector,
-    a: CUDABlockForm,
+    a: BlockCUDAForm,
     bcs: list[DirichletBC] | typing.Any,
     x0: CUDAVector | None = None,
     alpha: float = 1.0,
@@ -341,7 +367,8 @@ class CUDAAssembler:
       block_bc = bcs
     else:
       raise TypeError(
-        f"Expected either a list of DirichletBCs or a _cpp.fem_CUDADirichletBC_float64/32, got '{type(bcs)}'"
+        f"Expected either a list of DirichletBCs or"
+        f" a _cpp.fem_CUDADirichletBC_float64/32, got '{type(bcs)}'"
       )
 
     cuda_mesh = None
@@ -396,8 +423,10 @@ class CUDAAssembler:
         f"Expected either a list of DirichletBC's or a CUDADirichletBC, got '{type(bcs)}'"
       )
 
-    if hasattr(V, '_cpp_object'): _cppV = V._cpp_object
-    else: _cppV = V
+    if hasattr(V, '_cpp_object'):
+      _cppV = V._cpp_object
+    else:
+      _cppV = V
     _bcs = bc_collection._get_cpp_bcs(_cppV)
 
     if x0 is None:

@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
@@ -7,7 +7,7 @@
 """Routines for manipulating generated FFCX code."""
 
 import pathlib
-from typing import *
+from typing import Any
 
 import numpy as np
 
@@ -39,8 +39,10 @@ def get_tabulate_tensor_sources(form: fem.Form):
                     parsing_header = False
                     bracket_count += 1
             elif parsing_tabulate:
-                if line.startswith("{"): bracket_count += 1
-                elif line.startswith("}"): bracket_count -= 1
+                if line.startswith("{"):
+                    bracket_count += 1
+                elif line.startswith("}"):
+                    bracket_count -= 1
                 if not bracket_count:
                     tabulate_tensors.append((tabulate_id, "".join(tabulate_body)))
                     parsing_tabulate = False

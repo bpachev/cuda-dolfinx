@@ -1,8 +1,9 @@
-# Copyright (C) 2024 Benjamin Pachev
+# Copyright (C) 2024-2026 Benjamin Pachev
 #
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Boundary conditions."""
 
 import typing
 
@@ -37,9 +38,9 @@ class CUDADirichletBC:
         self._device_bcs.append(_cpp_bc_obj)
 
   def _make_device_bc(self,
-          V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64],
-          cpp_bcs: list[typing.Union[_cpp.fem.DirichletBC_float32, _cpp.fem.DirichletBC_float64]]
-          ):
+    V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64],
+    cpp_bcs: list[typing.Union[_cpp.fem.DirichletBC_float32, _cpp.fem.DirichletBC_float64]]
+  ):
       """Create device bc object wrapping a list of bcs for the same function space."""
       if type(V) is _cpp.fem.FunctionSpace_float32:
         return _cucpp.fem.CUDADirichletBC_float32(self._ctx, V, cpp_bcs)
@@ -48,7 +49,9 @@ class CUDADirichletBC:
       else:
         raise TypeError(f"Invalid type for cpp FunctionSpace object '{type(V)}'")
 
-  def _get_cpp_bcs(self, V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64]):
+  def _get_cpp_bcs(self,
+    V: typing.Union[_cpp.fem.FunctionSpace_float32, _cpp.fem.FunctionSpace_float64]
+  ):
     """Get cpp CUDADirichletBC object."""
     # Use this to avoid needing hashes (which might not be supported)
     # Usually there will be a max of two function spaces associated with a set of bcs

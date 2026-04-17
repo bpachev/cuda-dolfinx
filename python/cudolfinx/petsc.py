@@ -3,6 +3,7 @@
 # This file is part of cuDOLFINX
 #
 # SPDX-License-Identifier:    LGPL-3.0-or-later
+"""High-level solver classes."""
 
 from __future__ import annotations
 
