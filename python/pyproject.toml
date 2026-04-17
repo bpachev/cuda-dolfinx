@@ -78,18 +78,20 @@ indent-width = 4
 
 [tool.ruff.lint]
 select = [
-      "E", # pycodestyle
-      "W", # pycodestyle
-      "F", # pyflakes
-      "I",   # isort - use standalone isort
-      "RUF", # Ruff-specific rules
-      "UP",  # pyupgrade
-      "ICN", # flake8-import-conventions
-      "NPY", # numpy-specific rules
-      "FLY", # use f-string not static joins
+      "D",      # pydocstyle
+      "E",      # pycodestyle
+      "W",      # pycodestyle
+      "F",      # pyflakes
+      "I",      # isort - use standalone isort
+      "RUF",    # Ruff-specific rules
+      "UP",     # pyupgrade
+      "ICN",    # flake8-import-conventions
+      "NPY",    # numpy-specific rules
+      "FLY",    # use f-string not static joins
+      "NPY201", # numpy 2.x ruleset
 ]
-ignore = ["UP007", "RUF012"]
-allowed-confusables = ["σ"]
+ignore = ["RUF012"]
+allowed-confusables = ["σ", "ρ"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["basix", "dolfinx", "ffcx", "ufl", "cudolfinx"]
@@ -105,3 +107,13 @@ section-order = [
 
 [tool.ruff.lint.isort.sections]
 "mpi" = ["mpi4py", "petsc4py"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"test*.py" = [
+    "D100", # undocumented-public-module
+    "D103", # undocumented-public-function
+    "D205"  # missing-blank-line-after-summary
+]
