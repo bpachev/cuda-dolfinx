@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.19)
 
 # ------------------------------------------------------------------------------
 # Set project name and version number
-project(CUDOLFINX VERSION "0.10.0")
+project(CUDOLFINX VERSION "0.11.0")
 
 set(DOXYGEN_CUDOLFINX_VERSION
     ${CUDOLFINX_VERSION}
@@ -192,7 +192,7 @@ if(Python3_Interpreter_FOUND)
   endif()
 endif()
 
-find_package(Basix 0.10 REQUIRED CONFIG HINTS ${BASIX_PY_DIR})
+find_package(Basix 0.11 REQUIRED CONFIG HINTS ${BASIX_PY_DIR})
 set_package_properties(
   basix PROPERTIES
   TYPE REQUIRED
@@ -200,7 +200,7 @@ set_package_properties(
   URL "https://github.com/fenics/basix"
 )
 
-find_package(DOLFINX 0.10 REQUIRED CONFIG)
+find_package(DOLFINX 0.11 REQUIRED CONFIG)
 set_package_properties(
   DOLFINX PROPERTIES
   TYPE REQUIRED
@@ -231,7 +231,7 @@ set_package_properties(
 # which method UFCx was found
 if(NOT CUDOLFINX_UFCX_PYTHON)
   # Check in CONFIG mode, i.e. look for installed ufcxConfig.cmake
-  find_package(ufcx 0.10 REQUIRED CONFIG)
+  find_package(ufcx 0.11 REQUIRED CONFIG)
 else()
   # Check in MODULE mode (using FindUFCX.cmake)
   find_package(
@@ -239,7 +239,7 @@ else()
     COMPONENTS Interpreter
     REQUIRED
   )
-  find_package(UFCx 0.10 REQUIRED MODULE)
+  find_package(UFCx 0.11 REQUIRED MODULE)
 endif()
 
 set_package_properties(
