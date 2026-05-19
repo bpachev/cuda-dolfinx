@@ -964,15 +964,6 @@ public:
         " at " + __FILE__ + ":" + std::to_string(__LINE__));
     }
 
-    // Wait for the kernel to finish.
-    cuda_err = cuCtxSynchronize();
-    if (cuda_err != CUDA_SUCCESS) {
-      cuGetErrorString(cuda_err, &cuda_err_description);
-      throw std::runtime_error(
-        "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-        " at " + __FILE__ + ":" + std::to_string(__LINE__));
-    }
-
   }
   void assemble_matrix_facet(
     const CUDA::Context& cuda_context,
@@ -1106,15 +1097,6 @@ public:
       cuGetErrorString(cuda_err, &cuda_err_description);
       throw std::runtime_error(
         "cuLaunchKernel() failed with " + std::string(cuda_err_description) +
-        " at " + __FILE__ + ":" + std::to_string(__LINE__));
-    }
-
-    // Wait for the kernel to finish.
-    cuda_err = cuCtxSynchronize();
-    if (cuda_err != CUDA_SUCCESS) {
-      cuGetErrorString(cuda_err, &cuda_err_description);
-      throw std::runtime_error(
-        "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
         " at " + __FILE__ + ":" + std::to_string(__LINE__));
     }
 

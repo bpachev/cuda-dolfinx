@@ -312,14 +312,6 @@ void CUDAAssembler::zero_matrix_entries(
     }
   }
 
-  // Wait for the kernel to finish.
-  cuda_err = cuCtxSynchronize();
-  if (cuda_err != CUDA_SUCCESS) {
-    cuGetErrorString(cuda_err, &cuda_err_description);
-    throw std::runtime_error(
-      "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
-      " at " + __FILE__ + ":" + std::to_string(__LINE__));
-  }
 }
 //-----------------------------------------------------------------------------
 void CUDAAssembler::zero_vector_entries(
@@ -380,6 +372,14 @@ void CUDAAssembler::zero_vector_entries(
       " at " + __FILE__ + ":" + std::to_string(__LINE__));
   }
 
+  //x.restore_values_write();
+}
+
+void CUDAAssembler::synchronize(const CUDA::Context& cuda_context) const
+{
+  CUresult cuda_err;
+  const char * cuda_err_description;
+
   // Wait for the kernel to finish.
   cuda_err = cuCtxSynchronize();
   if (cuda_err != CUDA_SUCCESS) {
@@ -388,6 +388,4 @@ void CUDAAssembler::zero_vector_entries(
       "cuCtxSynchronize() failed with " + std::string(cuda_err_description) +
       " at " + __FILE__ + ":" + std::to_string(__LINE__));
   }
-
-  x.restore_values_write();
 }

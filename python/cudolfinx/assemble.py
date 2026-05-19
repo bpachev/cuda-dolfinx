@@ -107,6 +107,7 @@ class CUDAAssembler:
            a.cuda_mesh, mat._cpp_object, _bc0, _bc1
         )
 
+        self.synchronize()
         return mat
 
     def assemble_matrix_block(self,
@@ -136,13 +137,15 @@ class CUDAAssembler:
                   self._ctx, self._cpp_object, form.cuda_form,
                   form.cuda_mesh, mat._cpp_object, _bc0, _bc1
                 )
-
+        
+        self.synchronize()
         return mat
 
     def assemble_vector(self,
       b: CUDAForm,
       vec: CUDAVector | None = None,
-      constants=None, coeffs=None, zero=True
+      constants=None, coeffs=None, zero=True,
+      synchronize=True
     ):
         """Assemble linear form into vector on GPU.
 
@@ -154,6 +157,7 @@ class CUDAAssembler:
                 If not specified, all will be repacked.
                 If an empty list is passed, no repacking will be performed.
             zero: Whether to zero vector entries before assembly (defaults to true)
+            synchronize: Whether to wait for kernel completion (default true).
         """
         if not isinstance(b, CUDAForm):
             raise TypeError(f"Expected CUDAForm, got '{type(b)}'")
@@ -169,6 +173,11 @@ class CUDAAssembler:
 
         _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b.cuda_form,
           b.cuda_mesh, vec._cpp_object)
+        
+        if synchronize:
+            self.synchronize()
+            vec._cpp_object.restore_values_write()
+
         return vec
 
     def assemble_vector_block(self,
@@ -216,8 +225,10 @@ class CUDAAssembler:
                 vec=vec,
                 constants=form_constants,
                 coeffs=form_coeffs,
-                zero=False
+                zero=False,
+                synchronize=False,
             )
+        self.synchronize()
 
     def assemble_scalar(self,
       b: CUDAForm,
@@ -356,6 +367,11 @@ class CUDAAssembler:
           cuda_forms, cuda_mesh,
           b._cpp_object, _bcs, _x0, scale
         )
+        
+        self.synchronize()
+        b._cpp_object.restore_values_write()
+        for x0 in _x0:
+            x0.restore_values()
 
     def apply_lifting_block(self,
       b: CUDAVector,
@@ -403,6 +419,12 @@ class CUDAAssembler:
         else:
             _cucpp.fem.set_bc_on_device(self._ctx, self._cpp_object,
                     b._cpp_object, block_bc, alpha)
+        
+        self.synchronize()
+        # restore PETSc vectors
+        if x0 is not None:
+            _x0.restore_values()
+        b._cpp_object.restore_values_write()
 
     def set_bc(self,
       b: CUDAVector,
@@ -445,3 +467,13 @@ class CUDAAssembler:
               self._ctx, self._cpp_object,
               b._cpp_object, _bcs, x0._cpp_object, scale
             )
+        
+        self.synchronize()
+        b._cpp_object.restore_values_write()
+        if x0 is not None:
+            x0._cpp_object.restore_values()
+
+    def synchronize(self):
+        """Wait for executing kernels to complete."""
+
+        self._cpp_object.synchronize(self._ctx)

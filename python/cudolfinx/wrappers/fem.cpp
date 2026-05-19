@@ -215,6 +215,8 @@ void declare_cuda_objects(nb::module_& m)
           }, nb::arg("context"), nb::arg("x"), nb::arg("include_ghosts") = false)
       .def("to_host", &dolfinx::la::CUDAVector::copy_vector_values_to_host)
       .def("to_device", &dolfinx::la::CUDAVector::copy_vector_values_to_device)
+      .def("restore_values_write", &dolfinx::la::CUDAVector::restore_values_write)
+      .def("restore_values", &dolfinx::la::CUDAVector::restore_values)
       .def_prop_ro("vector",
           [](dolfinx::la::CUDAVector& cuvec) {
             Vec b = cuvec.vector();
@@ -230,7 +232,8 @@ void declare_cuda_objects(nb::module_& m)
              const char* cudasrcdir) {
             bool debug = true, verbose = false;
             new (assembler) dolfinx::fem::CUDAAssembler(cuda_context, debug, cudasrcdir, verbose);
-          }, nb::arg("context"), nb::arg("cudasrcdir"));
+          }, nb::arg("context"), nb::arg("cudasrcdir"))
+      .def("synchronize", &dolfinx::fem::CUDAAssembler::synchronize);
   
 }
 
