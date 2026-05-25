@@ -78,21 +78,26 @@ void declare_cuda_templated_objects(nb::module_& m, std::string type)
            [](dolfinx::fem::CUDAForm<T,U>* cf, const dolfinx::CUDA::Context& cuda_context,
               dolfinx::fem::Form<T,U>& form, std::uintptr_t ufcx_form,
 	      std::vector<std::string>& tabulate_tensor_names, std::vector<std::string>& tabulate_tensor_sources,
-	      std::vector<int>& integral_tensor_indices
+	      std::vector<int>& integral_tensor_indices,
+        std::vector<std::shared_ptr<dolfinx::fem::CUDACoefficient<T,U>>>& cuda_coeffs,
+        std::vector<int>& cuda_coeff_indices
 	      )
              {
 	       struct ufcx_form* p = reinterpret_cast<struct ufcx_form*>(ufcx_form);
                new (cf) dolfinx::fem::CUDAForm<T,U>(
                  cuda_context,
                  &form,
-		 p,
-		 tabulate_tensor_names,
-		 tabulate_tensor_sources,
-		 integral_tensor_indices
+                 p,
+		             tabulate_tensor_names,
+		             tabulate_tensor_sources,
+		             integral_tensor_indices,
+                 cuda_coeffs,
+                 cuda_coeff_indices
                );
              }, nb::arg("context"), nb::arg("form"), nb::arg("cuda_form"),
 	     nb::arg("tabulate_tensor_names"), nb::arg("tabulate_tensor_sources"),
-	     nb::arg("integral_tensor_indices")
+	     nb::arg("integral_tensor_indices"), nb::arg("cuda_coeffs"),
+       nb::arg("cuda_coeff_indices")
 	     )
       .def(
           "compile",

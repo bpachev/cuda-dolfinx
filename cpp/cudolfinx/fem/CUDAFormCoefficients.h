@@ -55,13 +55,17 @@ public:
   /// @param[in] cuda_context A context for a CUDA device
   /// @param[in] form The variational form whose coefficients are used
   /// @param[in] dofmap_store A cache mapping host-side to device-side dofmaps
+  /// @param[in] cuda_coeffs A list of the coefficients already stored as a CUDACoefficient
+  /// @param[in] cuda_coeff_indices Indices of the coefficients for which new CUDACoefficient wrappers don't need to be created
   /// @param[in] page_lock Whether or not to use page-locked memory
   ///                      for host-side arrays
   //-----------------------------------------------------------------------------
   CUDAFormCoefficients(
     const CUDA::Context& cuda_context,
     Form<T,U>* form,
-    common::CUDAStore<DofMap, CUDADofMap>& dofmap_store, 
+    common::CUDAStore<DofMap, CUDADofMap>& dofmap_store,
+    std::vector<std::shared_ptr<CUDACoefficient<T,U>>>& cuda_coeffs,
+    std::vector<int>& cuda_coeff_indices,
     bool page_lock=false)
     : _coefficients(form->coefficients())
     , _dofmaps_num_dofs_per_cell(0)
@@ -85,6 +89,8 @@ public:
       offsets.push_back(offsets.back() + c->function_space()->element()->space_dimension());
     }
 
+    if (cuda_coeffs.size() != cuda_coeff_indices.size())
+      throw std::runtime_error("Sizes of cuda_coeffs and cuda_coeff_indices should match!");
     // Get the number of cells in the mesh
     std::shared_ptr<const mesh::Mesh<U>> mesh = form->mesh();
     const int tdim = mesh->topology()->dim();
@@ -97,9 +103,21 @@ public:
     if (num_coefficients > 0) {
       std::vector<int> dofmaps_num_dofs_per_cell(num_coefficients);
       std::vector<CUdeviceptr> dofmaps_dofs_per_cell(num_coefficients);
+
+      size_t num_cuda_coeffs = cuda_coeffs.size();
+      int j = 0;
+
       for (int i = 0; i < num_coefficients; i++) {
-        _device_coefficients.push_back(std::make_shared<CUDACoefficient<T,U>>(_coefficients[i]));
-	_coefficient_device_ptrs.push_back(_device_coefficients[i]->device_values());
+        // Check to see if this coefficient is one of the ones
+        // already in cuda_coeffs
+        int cuda_coeff_ind = (j < num_cuda_coeffs) ? cuda_coeff_indices[j] : -1;
+        if (cuda_coeff_ind == i) {
+          _device_coefficients.push_back(cuda_coeffs[j++]);
+        }
+        else {
+          _device_coefficients.push_back(std::make_shared<CUDACoefficient<T,U>>(_coefficients[i]));
+        }
+        _coefficient_device_ptrs.push_back(_device_coefficients[i]->device_values());
         const fem::CUDADofMap* cuda_dofmap =
           dofmap_store.get_device_object(_coefficients[i]->function_space()->dofmap().get()).get();
         dofmaps_num_dofs_per_cell[i] = cuda_dofmap->num_dofs_per_cell();

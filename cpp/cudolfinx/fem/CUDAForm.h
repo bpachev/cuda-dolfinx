@@ -43,15 +43,23 @@ public:
     ufcx_form* ufcx_form,
     std::vector<std::string>& tabulate_tensor_names,
     std::vector<std::string>& tabulate_tensor_sources,
-    std::vector<int>& integral_tensor_indices
+    std::vector<int>& integral_tensor_indices,
+    std::vector<std::shared_ptr<CUDACoefficient<T,U>>>& cuda_coeffs,
+    std::vector<int>& cuda_coeff_indices
   )
-  : _coefficients(cuda_context, form, _dofmap_store)
+  : _coefficients(cuda_context, form, _dofmap_store, cuda_coeffs, cuda_coeff_indices)
   , _constants(cuda_context, form)
   , _form(form)
   , _ufcx_form(ufcx_form)
   , _compiled(false)
   {
-    _coefficients = CUDAFormCoefficients<T,U>(cuda_context, form, _dofmap_store);
+    _coefficients = CUDAFormCoefficients<T,U>(
+        cuda_context,
+        form,
+        _dofmap_store,
+        cuda_coeffs,
+        cuda_coeff_indices
+    );
     const int* integral_offsets = ufcx_form->form_integral_offsets;
     if (integral_offsets[3] != integral_tensor_indices.size()) {
       throw std::runtime_error("UFCx form has " + std::to_string(integral_offsets[3])

@@ -165,6 +165,25 @@ def test_block_assembly():
     fe.petsc.assemble_vector(vec_fe, cuda_L.dolfinx_forms)
     compare_vecs(vec_fe, vec_cuda.vector)
 
+def test_cuda_function():
+    """Test using CUDAFunction in place of Function."""
+    domain = make_test_domain()
+    V = fe.functionspace(domain, ("P", 1))
+    u = fe.Function(V)
+    p = ufl.TestFunction(V)
+    u.interpolate(lambda x: x[0]**2 + x[1]**2)
+    cuda_u = cufem.CUDAFunction(u)
+    b = fe.form(u * p * ufl.dx)
+    cuda_b = cufem.form(cuda_u * p * ufl.dx)
+    asm = cufem.CUDAAssembler()
+
+    vec_cuda = asm.create_vector(cuda_b)
+    asm.assemble_vector(cuda_b, vec_cuda)
+    vec_fe = fe.petsc.create_vector(V)
+    fe.petsc.assemble_vector(vec_fe, b)
+    compare_vecs(vec_fe, vec_cuda.vector)
+
+
 def test_diagonal_assembly():
     """Test that assembly of just the diagonal of a bilnear form works."""
     ufl_forms = make_ufl()

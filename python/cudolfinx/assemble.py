@@ -137,7 +137,7 @@ class CUDAAssembler:
                   self._ctx, self._cpp_object, form.cuda_form,
                   form.cuda_mesh, mat._cpp_object, _bc0, _bc1
                 )
-        
+
         self.synchronize()
         return mat
 
@@ -173,7 +173,7 @@ class CUDAAssembler:
 
         _cucpp.fem.assemble_vector_on_device(self._ctx, self._cpp_object, b.cuda_form,
           b.cuda_mesh, vec._cpp_object)
-        
+
         if synchronize:
             self.synchronize()
             vec._cpp_object.restore_values_write()
@@ -367,7 +367,7 @@ class CUDAAssembler:
           cuda_forms, cuda_mesh,
           b._cpp_object, _bcs, _x0, scale
         )
-        
+
         self.synchronize()
         b._cpp_object.restore_values_write()
         for x0 in _x0:
@@ -419,7 +419,7 @@ class CUDAAssembler:
         else:
             _cucpp.fem.set_bc_on_device(self._ctx, self._cpp_object,
                     b._cpp_object, block_bc, alpha)
-        
+
         self.synchronize()
         # restore PETSc vectors
         if x0 is not None:
@@ -467,7 +467,7 @@ class CUDAAssembler:
               self._ctx, self._cpp_object,
               b._cpp_object, _bcs, x0._cpp_object, scale
             )
-        
+
         self.synchronize()
         b._cpp_object.restore_values_write()
         if x0 is not None:
@@ -475,5 +475,4 @@ class CUDAAssembler:
 
     def synchronize(self):
         """Wait for executing kernels to complete."""
-
         self._cpp_object.synchronize(self._ctx)

@@ -17,6 +17,7 @@ import ufl
 from cudolfinx import cpp as _cucpp
 from cudolfinx import jit
 from cudolfinx.context import get_cuda_context
+from cudolfinx.function import CUDAFunction
 from dolfinx import cpp as _cpp
 from dolfinx import fem as fe
 from dolfinx.jit import mpi_jit_decorator
@@ -32,7 +33,7 @@ DEFAULT_CUDA_JIT_ARGS = {
 class CUDAForm:
     """CUDA wrapper class for a dolfinx.fem.Form."""
 
-    def __init__(self, form: fe.Form, jit_args: typing.Optional[dict] = {}):
+    def __init__(self, form: fe.Form, ufl_form: ufl.Form, jit_args: typing.Optional[dict] = {}):
         """Initialize the wrapper."""
         self._ctx = get_cuda_context()
         self._cuda_mesh = _create_mesh_on_device(form.mesh)
@@ -58,13 +59,30 @@ class CUDAForm:
         for name, source in self._wrapped_tabulate_tensors:
             _tabulate_tensor_names.append(name)
             _tabulate_tensor_sources.append(source)
+
+        # determine which coefficients are CUDAFunctions
+        # Copies for these functions are managed by the user,
+        # and they won't be autocopied on assembly
+
+        ufcx_form = form.ufcx_form
+        original_coeffs = ufl_form.coefficients()
+        cuda_coeff_indices = []
+        cuda_coeffs = []
+        for i in range(ufcx_form.num_coefficients):
+            coeff = original_coeffs[ufcx_form.original_coefficient_positions[i]]
+            if type(coeff) is CUDAFunction:
+                cuda_coeff_indices.append(i)
+                cuda_coeffs.append(coeff._cuda_function)
+
         self._cuda_form = form_cls(
                 self._ctx,
                 cpp_form,
                 ufcx_form_addr,
                 _tabulate_tensor_names,
                 _tabulate_tensor_sources,
-                self._integral_tensor_indices
+                self._integral_tensor_indices,
+                cuda_coeffs,
+                cuda_coeff_indices,
         )
 
         _jit_args = DEFAULT_CUDA_JIT_ARGS.copy()
@@ -276,7 +294,7 @@ def form(
         """Recursively convert ufl.Forms to CUDAForm."""
         if isinstance(form, ufl.Form):
             dolfinx_form = fe.form(form, **kwargs)
-            return CUDAForm(dolfinx_form, jit_args=cuda_jit_args)
+            return CUDAForm(dolfinx_form, form, jit_args=cuda_jit_args)
         elif isinstance(form, collections.abc.Iterable):
             return list(map(lambda sub_form: _create_form(sub_form), form))
         else:
