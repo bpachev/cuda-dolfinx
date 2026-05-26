@@ -182,7 +182,12 @@ def test_cuda_function():
     vec_fe = fe.petsc.create_vector(V)
     fe.petsc.assemble_vector(vec_fe, b)
     compare_vecs(vec_fe, vec_cuda.vector)
-
+    cuda_u.petsc_vec.scale(2)
+    asm.assemble_vector(cuda_b, vec_cuda)
+    u.x.petsc_vec.scale(2)
+    vec_fe2 = fe.petsc.create_vector(V)
+    fe.petsc.assemble_vector(vec_fe2, b)
+    compare_vecs(vec_fe2, vec_cuda.vector)
 
 def test_diagonal_assembly():
     """Test that assembly of just the diagonal of a bilnear form works."""

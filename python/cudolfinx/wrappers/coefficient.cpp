@@ -32,7 +32,9 @@ void declare_cuda_coefficient(nb::module_& m, std::string type)
          auto v = self.values();
          return nb::ndarray<T, nb::numpy, nb::c_contig>(v.data(), {v.size()}).cast();
        },
-       "Return a copy of the coefficient vector.");
+       "Return a copy of the coefficient vector.")
+  .def("to_device", &dolfinx::fem::CUDACoefficient<T,U>::copy_host_values_to_device,
+      "Update device values with those of the source dolfinx.fem.Function.");
 }
 
 namespace cudolfinx_wrappers

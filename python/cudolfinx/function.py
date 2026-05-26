@@ -41,6 +41,7 @@ class CUDAFunction(ufl.Coefficient):
         self._cuda_function = functiontype(f.dtype)(f._cpp_object)
         # Initialize UFL properties
         super().__init__(f.function_space.ufl_function_space())
+        self._petsc_vec = None
 
     def interpolate(self,
                     coeff0: CUDAFunction):
@@ -51,8 +52,19 @@ class CUDAFunction(ufl.Coefficient):
         Args:
             coeff0: A CUDAFunction object to interpolate from.
         """
-        return self._cpp_object.interpolate(coeff0._cpp_object)
+        return self._cuda_function.interpolate(coeff0._cpp_object)
+
+    def update(self):
+        """Update device values with the source host Function."""
+        self._cuda_function.to_device()
+
+    @property
+    def petsc_vec(self):
+        """Return a PETSc Vec wrapper of type CUDA."""
+        if self._petsc_vec is None:
+            self._petsc_vec = _cucpp.fem.petsc.create_cuda_wrapper_vec(self._cuda_function)
+        return self._petsc_vec
 
     def values(self) -> np.ndarray:
         """Return a copy of the global DOF vector."""
-        return self._cpp_object.values()
+        return self._cuda_function.values()

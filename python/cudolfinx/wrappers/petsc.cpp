@@ -5,6 +5,7 @@
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 
 #include "caster_petsc.h"
+#include <cudolfinx/fem/CUDACoefficient.h>
 #include <cudolfinx/fem/petsc.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -30,6 +31,9 @@ void petsc_fem_module(nb::module_& m)
   m.def("create_cuda_matrix_block", dolfinx::fem::petsc::create_cuda_matrix_block<PetscReal>,
         nb::rv_policy::take_ownership, nb::arg("forms"),
         "Create a monolithic PETSc CUDA Mat from a list of lists of bilinear forms.");
+  m.def("create_cuda_wrapper_vec", dolfinx::fem::petsc::create_cuda_wrapper_vec<PetscReal, PetscReal>,
+        nb::rv_policy::take_ownership, nb::arg("f"),
+        "Create a PETSc CUDA wrapper vector for a CUDAFunction");
 }
 
 } // namespace

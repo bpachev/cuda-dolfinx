@@ -7,6 +7,7 @@
 #pragma once
 
 #include <concepts>
+#include <cudolfinx/fem/CUDACoefficient.h>
 #include <cudolfinx/fem/CUDAForm.h>
 #include <cudolfinx/fem/utils.h>
 #include <cudolfinx/la/petsc.h>
@@ -104,6 +105,27 @@ Mat create_cuda_matrix_block(std::vector<std::vector<std::shared_ptr<CUDAForm<Pe
   la::SparsityPattern pattern(mesh->comm(), p, maps, bs_dofs);
   pattern.finalize();
   return la::petsc::create_cuda_matrix(mesh->comm(), pattern); 
+}
+
+// Create a PETSc vector wrapping a CUDAFunction
+template <dolfinx::scalar T,
+          std::floating_point U = dolfinx::scalar_value_t<T>>
+Vec create_cuda_wrapper_vec(std::shared_ptr<CUDACoefficient<T,U>> f) {
+  auto comm = f->host_function()->function_space()->mesh()->comm();
+  auto x = f->host_function()->x();
+  auto index_map = x->index_map();
+
+  PetscInt total_entries = x->bs() * index_map->size_local();
+  // TODO properly handle ghosts
+  //if (include_ghosts) total_entries += x->bs()*index_map->num_ghosts();
+  Vec v;
+  int ierr;
+  // convert from CUdeviceptr to PetscScalar *
+  PetscScalar * device_vals = reinterpret_cast<PetscScalar*>(static_cast<uintptr_t>(f->device_values()));
+  ierr = VecCreateMPICUDAWithArray(comm, 1, total_entries, x->bs()*index_map->size_global(), device_vals, &v);
+  if (ierr != 0)
+    dolfinx::la::petsc::error(ierr, __FILE__, "VECCreateMPICUDAWithArray");
+  return v;
 }
 
 } // namespace petsc

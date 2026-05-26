@@ -112,9 +112,13 @@ public:
         // already in cuda_coeffs
         int cuda_coeff_ind = (j < num_cuda_coeffs) ? cuda_coeff_indices[j] : -1;
         if (cuda_coeff_ind == i) {
+          // User-managed coefficient, don't need to auto-copy
+          // or construct the CUDACoefficient class
           _device_coefficients.push_back(cuda_coeffs[j++]);
         }
         else {
+          // Coefficient NOT user-managed, we need to auto-copy each time
+          _auto_copy_indices.push_back(i);
           _device_coefficients.push_back(std::make_shared<CUDACoefficient<T,U>>(_coefficients[i]));
         }
         _coefficient_device_ptrs.push_back(_device_coefficients[i]->device_values());
@@ -310,6 +314,7 @@ public:
     , _num_packed_coefficient_values_per_cell(form_coefficients._num_packed_coefficient_values_per_cell)
     , _page_lock(form_coefficients._page_lock)
     , _dpacked_coefficient_values(form_coefficients._dpacked_coefficient_values)
+    , _auto_copy_indices(std::move(form_coefficients._auto_copy_indices))
   {
     form_coefficients._dofmaps_num_dofs_per_cell = 0;
     form_coefficients._dofmaps_dofs_per_cell = 0;
@@ -337,6 +342,7 @@ public:
     _page_lock = form_coefficients._page_lock;
     std::swap(_host_coefficient_values, form_coefficients._host_coefficient_values);
     _dpacked_coefficient_values = form_coefficients._dpacked_coefficient_values;
+    _auto_copy_indices = form_coefficients._auto_copy_indices;
     form_coefficients._dofmaps_num_dofs_per_cell = 0;
     form_coefficients._dofmaps_dofs_per_cell = 0;
     form_coefficients._coefficient_values_offsets = 0;
@@ -354,7 +360,7 @@ public:
   void copy_coefficients_to_device(
     const CUDA::Context& cuda_context)
   {
-    for (int i = 0; i < _device_coefficients.size(); i++) {
+    for (int& i : _auto_copy_indices) {
       _device_coefficients[i]->copy_host_values_to_device();
     }
   }
@@ -368,6 +374,9 @@ private:
 
   /// Array of device pointers
   std::vector<CUdeviceptr> _coefficient_device_ptrs;
+
+  /// Array of indices for functions that need to be auto-copied
+  std::vector<int> _auto_copy_indices;
 
   /// Number of dofs per cell for each coefficient
   CUdeviceptr _dofmaps_num_dofs_per_cell;
