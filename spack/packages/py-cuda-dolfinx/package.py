@@ -17,17 +17,20 @@ class PyCudaDolfinx(PythonPackage):
 
     license("LGPL-3.0-only")
     version("main", branch="main")
+    version("0.11.0", branch="main")
     version("0.10.0", tag="v0.10.0.post2")
     version("0.9.0", tag="v0.9.0")
 
     depends_on("cxx", type="build")
     depends_on("cmake@3.21:", when="@0.9:", type="build")
-    depends_on("cuda-dolfinx@main", when="@main")
+    
+    depends_on("cuda-dolfinx@0.11.0", when="@0.11.0")
     depends_on("cuda-dolfinx@0.10.0", when="@0.10.0")
     depends_on("cuda-dolfinx@0.9.0", when="@0.9.0")
+    depends_on("cuda-dolfinx@main", when="@main")
+
     depends_on("pkgconfig", type="build")
     depends_on("py-nanobind@2:", when="@0.9:", type="build")
     depends_on("py-scikit-build-core+pyproject@0.5:", when="@0.9:", type="build")
 
     build_directory = "python"
-
