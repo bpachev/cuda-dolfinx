@@ -5,6 +5,7 @@
 // SPDX-License-Identifier:    LGPL-3.0-or-later
 #pragma once
 
+#include <dolfinx/common/version.h>
 #include <basix/finite-element.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
@@ -98,9 +99,19 @@ dolfinx::mesh::Mesh<T> ghost_layer_mesh(dolfinx::mesh::Mesh<T>& mesh,
   }
   std::vector<std::int64_t> input_dofmap_global(input_dofmap.size());
   mesh.topology()->index_map(0)->local_to_global(input_dofmap, input_dofmap_global);
+  #if (DOLFINX_VERSION_MINOR >= 11 && DOLFINX_VERSION_MINOR <= 12)
+  auto new_mesh
+      = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
+		                   mesh.comm(), x, xshape, partitioner, 2);
+  #elif (DOLFINX_VERSION_MINOR < 11)
   auto new_mesh
       = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
 		                   mesh.comm(), x, xshape, partitioner);
+  #else
+  auto new_mesh
+      = create_mesh(mesh.comm(), mesh.comm(), std::span(input_dofmap_global), coord_element,
+		                   mesh.comm(), x, xshape, partitioner, 2, 1);
+  #endif
   return new_mesh;
 }
 

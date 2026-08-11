@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.19)
 
 # ------------------------------------------------------------------------------
 # Set project name and version number
-project(CUDOLFINX VERSION "0.10.0")
+project(CUDOLFINX VERSION "0.11.0")
 
 set(DOXYGEN_CUDOLFINX_VERSION
     ${CUDOLFINX_VERSION}

@@ -13,7 +13,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "fenics-cudolfinx"
-version = "0.10.0"
+version = "0.11.0"
 description = "CUDA DOLFINx Python interface"
 readme = "../README.md"
 requires-python = ">=3.9.0"
